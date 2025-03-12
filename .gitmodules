@@ -1,0 +1,4 @@
+[submodule "external/limine"]
+	path = external/limine
+	url = https://github.com/limine-bootloader/limine.git
+	branch = v9.1.2-binary
