@@ -25,3 +25,4 @@ include(toolchain-${HELIX_ARCH})
 
 
 add_subdirectory(kernel)
+add_subdirectory(scripts)
