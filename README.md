@@ -19,6 +19,8 @@ Clone repository:
 git clone https://github.com/ProfessorLongBeard/HelixOS.git
 
 cd HelixOS
+direnv allow .
+
 git submodule init
 git submodule update
 ```
