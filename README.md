@@ -25,7 +25,7 @@ git submodule update
 
 Build project:
 ```
-mkdir HelixOS/build && cd HelixOS/build
+mkdir build && cd build
 cmake .. && make
 ```
 
