@@ -5,3 +5,6 @@
 [submodule "external/freestnd-c-hdrs"]
 	path = external/freestnd-c-hdrs
 	url = https://github.com/osdev0/freestnd-c-hdrs.git
+[submodule "external/flanterm"]
+	path = external/flanterm
+	url = https://github.com/mintsuki/flanterm.git
