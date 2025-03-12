@@ -17,6 +17,10 @@ echo "eval \"$(direnv hook bash)\"" >> ~/.bashrc && source ~/.bashrc
 Clone repository:
 ```
 git clone https://github.com/ProfessorLongBeard/HelixOS.git
+
+cd HelixOS
+git submodule init
+git submodule update
 ```
 
 Build project:
