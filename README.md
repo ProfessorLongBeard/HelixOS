@@ -1,1 +1,26 @@
 ## Simple ARM64 OS made from scratch
+
+
+
+Dependencies:
+```
+sudo apt-get updatee
+sudo apt-get install gcc-aarch64-linux-gnu cmake mtools gdisk qemu-system-aarch64 direnv
+```
+
+
+Clone repository:
+```
+git clone https://github.com/ProfessorLongBeard/HelixOS.git
+```
+
+Build project:
+```
+mkdir HelixOS/build && cd HelixOS/build
+cmake .. && make
+```
+
+Run project:
+```
+make setup && make run
+```
