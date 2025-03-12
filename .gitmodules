@@ -2,3 +2,6 @@
 	path = external/limine
 	url = https://github.com/limine-bootloader/limine.git
 	branch = v9.1.2-binary
+[submodule "external/freestnd-c-hdrs"]
+	path = external/freestnd-c-hdrs
+	url = https://github.com/osdev0/freestnd-c-hdrs.git
