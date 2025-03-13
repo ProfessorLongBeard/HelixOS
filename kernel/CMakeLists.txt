@@ -42,6 +42,15 @@ if (EXISTS $ENV{HELIX_EXT_DIR}/flanterm)
     add_subdirectory($ENV{HELIX_EXT_DIR}/flanterm ${CMAKE_BINARY_DIR}/flanterm)
 endif()
 
+if (EXISTS $ENV{HELIX_EXT_DIR}/printf)
+    if (NOT EXISTS $ENV{HELIX_EXT_DIR}/printf/src/printf/CMakeLists.txt)
+        configure_file(${CMAKE_SOURCE_DIR}/cmake/printf.cmake.in $ENV{HELIX_EXT_DIR}/printf/src/printf/CMakeLists.txt @ONLY)
+    endif()
+
+    add_subdirectory($ENV{HELIX_EXT_DIR}/printf/src/printf ${CMAKE_BINARY_DIR}/printf)
+endif()
+
 add_subdirectory(arch)
 add_subdirectory(init)
 add_subdirectory(devices)
+add_subdirectory(lib)
