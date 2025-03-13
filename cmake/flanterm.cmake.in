@@ -1,0 +1,15 @@
+@PACKAGE_INIT@
+
+
+target_sources(${KERNEL_TARGET} PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/flanterm.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/backends/fb.c"
+    "${CMAKE_SOURCE_DIR}/kernel/lib/kstring/memcpy.c"
+    "${CMAKE_SOURCE_DIR}/kernel/lib/kstring/memset.c"
+)
+
+target_include_directories(${KERNEL_TARGET} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/backends
+    ${CMAKE_SOURCE_DIR}/kernel/include
+)
