@@ -12,4 +12,5 @@ target_include_directories(${KERNEL_TARGET} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/backends
     ${CMAKE_SOURCE_DIR}/kernel/include
+    ${CMAKE_SOURCE_DIR}/externel/freestnd-c-hdrs
 )
