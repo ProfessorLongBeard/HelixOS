@@ -8,6 +8,7 @@ target_include_directories(${KERNEL_TARGET} PRIVATE
     ${CMAKE_SOURCE_DIR}/kernel/include
     ${CMAKE_SOURCE_DIR}/external/limine
     ${CMAKE_SOURCE_DIR}/externel/flanterm
+    ${CMAKE_SOURCE_DIR}/external/printf/src/printf
     ${CMAKE_SOURCE_DIR}/external/freestnd-c-hdrs/aarch64/include
 
 )
@@ -21,6 +22,7 @@ target_compile_options(${KERNEL_TARGET} PRIVATE
     -Wno-unused-variable
     -Wno-unused-but-set-variable
     -Wno-unused-command-line-argument
+    -Wno-implicit-function-declaration
     -fno-stack-protector
     -fno-stack-check
     -ffreestanding
