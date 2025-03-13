@@ -21,8 +21,13 @@ include(toolchain-${HELIX_ARCH})
 
 
 
+if (NOT EXISTS $ENV{HELIX_SYSROOT})
+    file(MAKE_DIRECTORY $ENV{HELIX_SYSROOT})
 
-
+    if (NOT EXISTS $ENV{HELIX_PREFIX})
+        file(MAKE_DIRECTORY $ENV{HELIX_PREFIX})
+    endif()
+endif()
 
 add_subdirectory(kernel)
 add_subdirectory(scripts)
