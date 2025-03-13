@@ -11,5 +11,8 @@
 
 void memset(void *dst, char ch, size_t len);
 void memcpy(void *dst, void *src, size_t len);
+size_t strlen(const char *s);
+
+double __trunctfdf2(long double a);
 
 #endif
