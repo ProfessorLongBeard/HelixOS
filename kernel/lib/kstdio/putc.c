@@ -7,6 +7,12 @@
 
 
 
+
 void putchar_(char ch) {
     fb_putc(ch);
+}
+
+
+void putc(char ch) {
+    putchar_(ch);
 }
