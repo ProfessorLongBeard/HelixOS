@@ -16,7 +16,12 @@ MEM=4G
 
 
 
+ln -sf ${HELIX_SOURCE_DIR}/.gdbinit ${HELIX_BINARY_DIR}/scripts/
+
+
+
 ${QEMU} \
+    -s -S \
     -d guest_errors,cpu_reset \
     -M ${MACHINE} \
     -cpu ${CPU} \
@@ -30,5 +35,6 @@ ${QEMU} \
     -device usb-kbd \
     -device usb-mouse \
     -net none \
-    -device virtio-gpi-pci \
+    -device ramfb \
+    -serial stdio \
     -display gtk,zoom-to-fit=off

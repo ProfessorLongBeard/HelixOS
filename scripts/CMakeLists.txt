@@ -12,9 +12,9 @@ add_custom_target(run
     USES_TERMINAL
 )
 
-#add_custom_target(debug
-#    COMMAND
-#       ${CMAKE_COMMAND} -E env "$ENV{HELIX_SCRIPTS}/run_debug.sh"
-#
-#    USES_TERMINAL
-#)
+add_custom_target(debug
+    COMMAND
+       ${CMAKE_COMMAND} -E env "$ENV{HELIX_SCRIPTS_DIR}/run_debug.sh"
+
+    USES_TERMINAL
+)
