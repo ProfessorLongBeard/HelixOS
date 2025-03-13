@@ -34,6 +34,10 @@ target_link_options(${KERNEL_TARGET} PRIVATE
     -T ${CMAKE_SOURCE_DIR}/kernel/arch/${HELIX_ARCH}/helix.ld
 )
 
+target_link_libraries(${KERNEL_TARGET} PRIVATE
+    gcc
+)
+
 if (EXISTS $ENV{HELIX_EXT_DIR}/flanterm)
     if (NOT EXISTS $ENV{HELIX_EXT_DIR}/flanterm/CMakeLists.txt)
         configure_file(${CMAKE_SOURCE_DIR}/cmake/flanterm.cmake.in $ENV{HELIX_EXT_DIR}/flanterm/CMakeLists.txt @ONLY)
