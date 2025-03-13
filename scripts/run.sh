@@ -30,5 +30,5 @@ ${QEMU} \
     -device usb-kbd \
     -device usb-mouse \
     -net none \
-    -device virtio-gpi-pci \
+    -device ramfb \
     -display gtk,zoom-to-fit=off
