@@ -24,6 +24,7 @@ SECTIONS
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .text : {
+        KEEP(*(.vectors));
         *(.text .text.*)
     } :text
 
