@@ -9,14 +9,10 @@ _start:
     mrs x15, mpidr_el1
     and x15, x15, #0x3
     cmp x15, #0
-    bne halt
+    bne __hcf
 
     // Initialize vbar_el1
     adrp x15, _vector_table
     msr vbar_el1, x15
 
     b helix_init
-
-halt:
-    wfi
-    b halt
