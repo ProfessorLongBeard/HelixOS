@@ -21,5 +21,6 @@ typedef struct __freelist_node {
 
 
 void pmm_init(void);
+void *pmm_alloc(size_t len);
 
 #endif

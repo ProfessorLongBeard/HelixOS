@@ -55,9 +55,68 @@ void pmm_init(void) {
         node->length = e->length;
         node->next = NULL;
 
-        printf("PMM: New node region: [0x%lx - 0x%lx], size = %uKB\n", e->base, e->base + e->length, e->length);
+        printf("PMM: New node region: [0x%lx - 0x%lx], size = %uKB\n", node->base_addr, node->base_addr + node->length, node->length / 1024);
 
         node->next = fl->next;
         fl = node;
     }
+}
+
+static void *__pmm_alloc_chunk(size_t len) {
+    freelist_t *curr = fl;
+    void *ptr = NULL;
+    uint64_t hhdm_offset = vmm_get_hhdm_offset();
+
+
+    ptr = (void *)(hhdm_offset + curr->base_addr);
+
+    curr->base_addr += len;
+    curr->length -= len;
+
+    printf("PMM: Allocated chunk: base = 0x%lx, end = 0x%lx, size = %u\n", curr->base_addr, curr->base_addr + len, len);
+    return ptr;
+}
+
+static void __pmm_free_chunk(void *ptr, size_t len) {
+}
+
+void *pmm_alloc(size_t len) {
+    freelist_t *curr_node = fl;
+    freelist_t *prev = NULL;
+    uint64_t hhdm_offset = vmm_get_hhdm_offset();
+
+
+
+
+    if (len < curr_node->length) {
+        void *ptr = __pmm_alloc_chunk(len);
+
+        if (!ptr) {
+            printf("PMM: Failed to allocate chunk size: %u!\n", len);
+            return NULL;
+        }
+
+        return ptr;
+    }
+
+    if (len > curr_node->length) {
+        // Iterate nodes till we can satisfy the allocation request
+        while(curr_node != NULL && len > curr_node->length) {
+            prev = curr_node;
+            curr_node = curr_node->next;
+        }
+
+        // Found new node to satisfy the allocation request
+        void *ptr = __pmm_alloc_chunk(len);
+
+        if (!ptr) {
+            printf("PMM: Failed to allocate chunk size: %u\n", len);
+            return NULL;
+        }
+
+        return ptr;
+    }
+
+    printf("PMM: No available memory for allocation!\n");
+    return NULL;
 }
