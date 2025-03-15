@@ -26,7 +26,7 @@ target_compile_options(${KERNEL_TARGET} PRIVATE
     -fno-stack-protector
     -fno-stack-check
     -ffreestanding
-    -fno-PIC
+    -fPIC
 )
 
 target_link_options(${KERNEL_TARGET} PRIVATE
@@ -60,3 +60,4 @@ add_subdirectory(arch)
 add_subdirectory(init)
 add_subdirectory(devices)
 add_subdirectory(lib)
+add_subdirectory(mm)
