@@ -1,9 +1,11 @@
 #include <kstdio.h>
-#include <kstring.h>
 #include <kernel.h>
-#include <arch.h>
-#include <framebuffer.h>
 #include <stdbool.h>
+#include <framebuffer.h>
+#include <pmm.h>
+#include <vmm.h>
+
+
 
 
 
@@ -20,6 +22,19 @@ void helix_init(void) {
     }
 
     fb_init();
+    pmm_init();
+
+    void *buf1 = pmm_alloc(5);
+    
+    void *buf2 = pmm_alloc(500);
+
+    void *buf3 = pmm_alloc(75);
+
+    void *buf4 = pmm_alloc(10);
+
+    void *buf5 = pmm_alloc(10000);
+
+    printf("Test!\n");
 
     __hcf();
 }
