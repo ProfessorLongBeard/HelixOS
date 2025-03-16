@@ -63,6 +63,7 @@ void pmm_init(void) {
 
             node->base_addr = e->base;
             node->length = e->length;
+            node->next = NULL;
 
             // Adjust base and size to account for freelist pointer
             node->base_addr += sizeof(freelist_t);
