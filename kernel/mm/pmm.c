@@ -1,5 +1,9 @@
+#include <kstdio.h>
+#include <kstdlib.h>
 #include <pmm.h>
 #include <vmm.h>
+
+
 
 
 
@@ -10,7 +14,16 @@ static volatile struct limine_memmap_request mm = {
 };
 
 
-static freelist_t *head;
+
+static freelist_t   *free;
+static page_node_t  *used;
+
+
+
+
+
+
+
 
 
 
@@ -21,7 +34,7 @@ static freelist_t *head;
 void pmm_init(void) {
     uint64_t hhdm_offset = vmm_get_hhdm_offset();
     struct limine_memmap_response *m = mm.response;
-
+    freelist_t *head = NULL;
 
 
 
@@ -34,44 +47,75 @@ void pmm_init(void) {
             continue;
         }
 
-        if (!head) {
-            // Set first node
-            freelist_t *first_node = (freelist_t *)(hhdm_offset + e->base);
+        // Create freelist nodes of available usable memory regions
+        freelist_t *node = (freelist_t *)(hhdm_offset + e->base);
+        node->base = e->base;
+        node->end = e->base + e->length;
+        node->size = e->length;
+        node->next = NULL;
 
-            first_node->base_addr = e->base;
-            first_node->length = e->length;
+        printf("PMM: Free region: [0x%lx - 0x%lx] size = %uKB\n", node->base, node->end, node->size / 1024);
 
-            // Adjust base and size to account for node pointer
-            first_node->base_addr += sizeof(freelist_t);
-            first_node->length -= sizeof(freelist_t);
-            first_node->next = NULL;
+        if (!free) {
+            // Set head node
+            free = node;
+            head = free;
 
-            printf("PMM: Head node: [0x%lx - 0x%lx] size = %uKB\n", first_node->base_addr, first_node->base_addr + first_node->length, first_node->length / 1024);
-            head = first_node;
         } else {
-
-            // Keep list head intact
-            freelist_t *prev = head;
-
-            // Iterate to last node
-            while(prev->next != NULL) {
-                prev = prev->next;
+            // Get end of list
+            while(free->next != NULL) {
+                free = free->next;
             }
 
-            // Create new node and link it
-            freelist_t *node = (freelist_t *)(hhdm_offset + e->base);
-
-            node->base_addr = e->base;
-            node->length = e->length;
-            node->next = NULL;
-
-            // Adjust base and size to account for freelist pointer
-            node->base_addr += sizeof(freelist_t);
-            node->length -= sizeof(freelist_t);
-
             // Link node
-            prev->next = node;
-            printf("PMM: Node region: [0x%lx - 0x%lx] size = %uKB\n", node->base_addr, node->base_addr + node->length, node->length / 1024);
+            free->next = node;
         }
     }
+
+    // Ensure first usable region is set first
+    free = head;
+}
+
+void *pmm_alloc(void) {
+    freelist_t *curr_free = free;
+    page_node_t *curr_page = used;
+    uint64_t hhdm_offset = vmm_get_hhdm_offset();
+    void *ptr = NULL;
+
+
+
+
+
+    if (!used) {
+        page_node_t *first_page = (page_node_t *)(hhdm_offset + curr_free->base);
+        first_page->base = curr_free->base;
+        first_page->size = PMM_PAGE_SIZE;
+        first_page->next = NULL;
+
+        ptr = (void *)(hhdm_offset + first_page->base);
+
+        curr_free->base += PMM_PAGE_SIZE;
+        used = first_page;
+
+        printf("PMM: Allocated page: [0x%lx - 0x%lx] size = %uKB\n", first_page->base, first_page->base + first_page->size, first_page->size / 1024);
+    } else {
+        // Iterate to last linked page
+        while(curr_page->next != NULL) {
+            curr_page = curr_page->next;
+        }
+
+        // Ensure we're onto the next page
+        curr_free->base += PMM_PAGE_SIZE;
+
+        page_node_t *page = (page_node_t *)(hhdm_offset + curr_free->base);
+        page->base = curr_free->base;
+        page->size = PMM_PAGE_SIZE;
+
+        ptr = (void *)(hhdm_offset + page->base);
+
+        curr_page->next = page;
+        printf("PMM: Allocated page: [0x%lx - 0x%lx] size = %uKB\n", page->base, page->base + page->size, page->size / 1024);
+    }
+
+    return ptr;
 }
