@@ -159,6 +159,8 @@ void *pmm_alloc(void) {
 
     head->phys_base += PMM_PAGE_SIZE;
     head->length -= PMM_PAGE_SIZE;
+
+    pmm_push_node(used_mem, page);
     return ptr;
 }
 
