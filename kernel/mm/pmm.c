@@ -13,11 +13,8 @@ static volatile struct limine_memmap_request mm = {
     .revision = 0
 };
 
-
-
-static freelist_t   *free;
-static page_node_t  *used;
-
+static freelist_t *free_mem = NULL;
+static freelist_t *used_mem = NULL;
 
 
 
@@ -30,13 +27,67 @@ static page_node_t  *used;
 
 
 
+
+
+static freelist_t *pmm_get_last_node(freelist_t *head) {
+    freelist_t *prev = head;
+
+    assert(prev != NULL);
+
+    while(prev->next != NULL) {
+        prev = prev->next;
+    }
+
+    return prev;
+}
+
+static void pmm_push_node(freelist_t *head, freelist_t *node) {
+    freelist_t *prev = NULL;
+
+    assert(head != NULL);
+    assert(node != NULL);
+
+    prev = pmm_get_last_node(head);
+    assert(prev != NULL);
+
+    prev->next = node;
+}
+
+static void pmm_pop_node(freelist_t *head, freelist_t *node) {
+    freelist_t *prev = head;
+
+    assert(prev != NULL);
+    assert(node != NULL);
+
+    while(prev->next != NULL) {
+        if (prev->phys_base == node->phys_base && prev->phys_end == node->phys_end && prev->length == node->length) {
+            // Remove this node from the list, and stich the others together
+        }
+
+        prev = prev->next;
+    }
+}
+
+static void pmm_pop_last_node(freelist_t *head) {
+    freelist_t *prev = head;
+
+    assert(prev != NULL);
+
+    while(prev->next && prev->next->next) {
+        prev = prev->next;
+    }
+
+    prev->next = NULL;
+}
 
 void pmm_init(void) {
-    uint64_t hhdm_offset = vmm_get_hhdm_offset();
     struct limine_memmap_response *m = mm.response;
+    uint64_t hhdm_offset = vmm_get_hhdm_offset();
     freelist_t *head = NULL;
 
+    
 
+    
 
 
     for (uint32_t i = 0; i < m->entry_count; i++) {
@@ -47,75 +98,69 @@ void pmm_init(void) {
             continue;
         }
 
-        // Create freelist nodes of available usable memory regions
-        freelist_t *node = (freelist_t *)(hhdm_offset + e->base);
-        node->base = e->base;
-        node->end = e->base + e->length;
-        node->size = e->length;
-        node->next = NULL;
+        if (!free_mem) {
+            freelist_t *first_node = (freelist_t *)(hhdm_offset + e->base);
+            first_node->phys_base = e->base;
+            first_node->phys_end = e->base + e->length;
+            first_node->length = e->length;
+            first_node->next = NULL;
 
-        printf("PMM: Free region: [0x%lx - 0x%lx] size = %uKB\n", node->base, node->end, node->size / 1024);
+            free_mem = first_node;
+            head = free_mem;
 
-        if (!free) {
-            // Set head node
-            free = node;
-            head = free;
-
+            printf("PMM: Available region: [0x%lx - 0x%lx] region size: %uKB\n", first_node->phys_base, first_node->phys_end, first_node->length / 1024);
+        
         } else {
-            // Get end of list
-            while(free->next != NULL) {
-                free = free->next;
-            }
+            freelist_t *node = (freelist_t *)(hhdm_offset + e->base);
+            node->phys_base = e->base;
+            node->phys_end = e->base + e->length;
+            node->length = e->length;
+            node->next = NULL;
 
-            // Link node
-            free->next = node;
+            pmm_push_node(free_mem, node);
+            printf("PMM: Available region: [0x%lx - 0x%lx] region size: %uKB\n", node->phys_base, node->phys_end, node->length / 1024);
         }
     }
 
-    // Ensure first usable region is set first
-    free = head;
+    // Ensure first list entry is used for allocations
+    free_mem = head;
+    printf("PMM: Set head node: [0x%lx - 0x%lx] region size: %uKB\n", head->phys_base, head->phys_end, head->length / 1024);
 }
 
 void *pmm_alloc(void) {
-    freelist_t *curr_free = free;
-    page_node_t *curr_page = used;
+    freelist_t *head = free_mem, *page_head = used_mem;
+    freelist_t *page = NULL;
     uint64_t hhdm_offset = vmm_get_hhdm_offset();
     void *ptr = NULL;
 
 
 
+    assert(head != NULL);
 
+    page = (freelist_t *)(hhdm_offset + head->phys_base);
+    page->phys_base = head->phys_base;
+    page->phys_end = page->phys_base + PMM_PAGE_SIZE;
+    page->length = PMM_PAGE_SIZE;
+    page->next = NULL;
 
-    if (!used) {
-        page_node_t *first_page = (page_node_t *)(hhdm_offset + curr_free->base);
-        first_page->base = curr_free->base;
-        first_page->size = PMM_PAGE_SIZE;
-        first_page->next = NULL;
+    if (!used_mem) {
+        used_mem = page;
 
-        ptr = (void *)(hhdm_offset + first_page->base);
+        ptr = (void *)(hhdm_offset + page->phys_base);
+        printf("PMM: Allocated page: [0x%lx - 0x%lx] page size: %uKB\n", page->phys_base, page->phys_end, page->length / 1024);
 
-        curr_free->base += PMM_PAGE_SIZE;
-        used = first_page;
-
-        printf("PMM: Allocated page: [0x%lx - 0x%lx] size = %uKB\n", first_page->base, first_page->base + first_page->size, first_page->size / 1024);
-    } else {
-        // Iterate to last linked page
-        while(curr_page->next != NULL) {
-            curr_page = curr_page->next;
-        }
-
-        // Ensure we're onto the next page
-        curr_free->base += PMM_PAGE_SIZE;
-
-        page_node_t *page = (page_node_t *)(hhdm_offset + curr_free->base);
-        page->base = curr_free->base;
-        page->size = PMM_PAGE_SIZE;
-
-        ptr = (void *)(hhdm_offset + page->base);
-
-        curr_page->next = page;
-        printf("PMM: Allocated page: [0x%lx - 0x%lx] size = %uKB\n", page->base, page->base + page->size, page->size / 1024);
+        head->phys_base += PMM_PAGE_SIZE;
+        head->length -= PMM_PAGE_SIZE;
+        return ptr;
     }
 
+    ptr = (void *)(hhdm_offset + page->phys_base);
+    printf("PMM: Allocated page: [0x%lx - 0x%lx] page size: %uKB\n", page->phys_base, page->phys_end, page->length / 1024);
+
+    head->phys_base += PMM_PAGE_SIZE;
+    head->length -= PMM_PAGE_SIZE;
     return ptr;
+}
+
+void pmm_free(void *ptr) {
 }
