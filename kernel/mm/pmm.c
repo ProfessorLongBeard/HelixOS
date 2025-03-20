@@ -1,22 +1,16 @@
 #include <kstdio.h>
 #include <kstdlib.h>
-#include <pmm.h>
-#include <vmm.h>
+#include <stdbool.h>
+#include <mm.h>
 
 
 
 
+static freelist_t *free_mem;
+static freelist_t *used_mem;
 
-__attribute__((used, section(".limine_requests")))
-static volatile struct limine_memmap_request mm = {
-    .id = LIMINE_MEMMAP_REQUEST,
-    .revision = 0
-};
-
-static freelist_t *free_mem = NULL;
-static freelist_t *used_mem = NULL;
-
-
+static size_t total_mem = 0;
+static size_t allocated_mem = 0;
 
 
 
@@ -24,145 +18,86 @@ static freelist_t *used_mem = NULL;
 
 
 
-
-
-
-
-
-static freelist_t *pmm_get_last_node(freelist_t *head) {
-    freelist_t *prev = head;
-
-    assert(prev != NULL);
-
-    while(prev->next != NULL) {
-        prev = prev->next;
-    }
-
-    return prev;
-}
-
-static void pmm_push_node(freelist_t *head, freelist_t *node) {
-    freelist_t *prev = NULL;
-
-    assert(head != NULL);
-    assert(node != NULL);
-
-    prev = pmm_get_last_node(head);
-    assert(prev != NULL);
-
-    prev->next = node;
-}
-
-static void pmm_pop_node(freelist_t *head, freelist_t *node) {
-    freelist_t *prev = head;
-
-    assert(prev != NULL);
-    assert(node != NULL);
-
-    while(prev->next != NULL) {
-        if (prev->phys_base == node->phys_base && prev->phys_end == node->phys_end && prev->length == node->length) {
-            // Remove this node from the list, and stich the others together
-        }
-
-        prev = prev->next;
-    }
-}
-
-static void pmm_pop_last_node(freelist_t *head) {
-    freelist_t *prev = head;
-
-    assert(prev != NULL);
-
-    while(prev->next && prev->next->next) {
-        prev = prev->next;
-    }
-
-    prev->next = NULL;
-}
 
 void pmm_init(void) {
-    struct limine_memmap_response *m = mm.response;
-    uint64_t hhdm_offset = vmm_get_hhdm_offset();
+    uint64_t hhdm_offset = 0;
+    uint32_t mm_entries = 0;
     freelist_t *head = NULL;
 
-    
-
-    
 
 
-    for (uint32_t i = 0; i < m->entry_count; i++) {
-        struct limine_memmap_entry *e = m->entries[i];
 
-        // We only want usable regions
+    mm_entries = mm_get_num_entries();
+    assert(mm_entries > 0);
+
+    hhdm_offset = mm_get_hhdm_offset();
+    assert(hhdm_offset > 0);
+
+    for (uint32_t i = 0; i < mm_entries; i++) {
+        struct limine_memmap_entry *e = mm_entry_for_each(i);
+
         if (e->type != LIMINE_MEMMAP_USABLE) {
             continue;
         }
 
+        total_mem += e->length;
+
+        freelist_t *free_node = (freelist_t *)(hhdm_offset + e->base);
+        free_node->base = e->base;
+        free_node->size = e->length;
+        free_node->end = free_node->base + free_node->size;
+        free_node->next = NULL;
+
+        printf("PMM: Available region: [0x%lx - 0x%lx] region size: %uKB\n", free_node->base, free_node->end, free_node->size / 1024);
+
         if (!free_mem) {
-            freelist_t *first_node = (freelist_t *)(hhdm_offset + e->base);
-            first_node->phys_base = e->base;
-            first_node->phys_end = e->base + e->length;
-            first_node->length = e->length;
-            first_node->next = NULL;
+            free_mem = free_node;
+            head = free_node;
 
-            free_mem = first_node;
-            head = free_mem;
-
-            printf("PMM: Available region: [0x%lx - 0x%lx] region size: %uKB\n", first_node->phys_base, first_node->phys_end, first_node->length / 1024);
-        
         } else {
-            freelist_t *node = (freelist_t *)(hhdm_offset + e->base);
-            node->phys_base = e->base;
-            node->phys_end = e->base + e->length;
-            node->length = e->length;
-            node->next = NULL;
+            while(free_mem->next != NULL) {
+                free_mem = free_mem->next;
+            }
 
-            pmm_push_node(free_mem, node);
-            printf("PMM: Available region: [0x%lx - 0x%lx] region size: %uKB\n", node->phys_base, node->phys_end, node->length / 1024);
+            free_mem->next = free_node;
         }
     }
 
-    // Ensure first list entry is used for allocations
     free_mem = head;
-    printf("PMM: Set head node: [0x%lx - 0x%lx] region size: %uKB\n", head->phys_base, head->phys_end, head->length / 1024);
 }
 
 void *pmm_alloc(void) {
-    freelist_t *head = free_mem, *page_head = used_mem;
     freelist_t *page = NULL;
-    uint64_t hhdm_offset = vmm_get_hhdm_offset();
-    void *ptr = NULL;
+    uint64_t hhdm_offset = mm_get_hhdm_offset();
 
 
+    assert(free_mem != NULL);
 
-    assert(head != NULL);
+    if (allocated_mem >= total_mem)  {
+        printf("PMM: Switching regions...\n");
+    }
 
-    page = (freelist_t *)(hhdm_offset + head->phys_base);
-    page->phys_base = head->phys_base;
-    page->phys_end = page->phys_base + PMM_PAGE_SIZE;
-    page->length = PMM_PAGE_SIZE;
+    page = (freelist_t *)(hhdm_offset + free_mem->base);
+    page->base = hhdm_offset + free_mem->base;
+    page->size = PAGE_SIZE;
+    page->end = page->base + page->size;
     page->next = NULL;
+    void *ptr = (void *)page->base;
 
     if (!used_mem) {
         used_mem = page;
+    } else {
+        while(used_mem->next != NULL) {
+            used_mem = used_mem->next;
+        }
 
-        ptr = (void *)(hhdm_offset + page->phys_base);
-        printf("PMM: Allocated page: [0x%lx - 0x%lx] page size: %uKB\n", page->phys_base, page->phys_end, page->length / 1024);
-
-        head->phys_base += PMM_PAGE_SIZE;
-        head->length -= PMM_PAGE_SIZE;
-        return ptr;
+        used_mem->next = page;
     }
 
-    ptr = (void *)(hhdm_offset + page->phys_base);
-    printf("PMM: Allocated page: [0x%lx - 0x%lx] page size: %uKB\n", page->phys_base, page->phys_end, page->length / 1024);
+    printf("PMM: Allocated page: [0x%lx - 0x%lx] page size %uKB\n", page->base, page->end, page->size / 1024);
 
-    head->phys_base += PMM_PAGE_SIZE;
-    head->length -= PMM_PAGE_SIZE;
+    free_mem->base += PAGE_SIZE;
+    allocated_mem += PAGE_SIZE;
 
-    pmm_push_node(used_mem, page);
     return ptr;
-}
-
-void pmm_free(void *ptr) {
 }
