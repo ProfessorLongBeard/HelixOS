@@ -45,7 +45,7 @@ struct limine_memmap_entry *mm_entry_for_each(uint32_t idx) {
     struct limine_memmap_entry *e = NULL;
 
 
-    if (idx < 0 || idx > m->entry_count) {
+    if (idx > m->entry_count) {
         printf("Invalid memory map entry index: %u\n", idx);
     }
 
