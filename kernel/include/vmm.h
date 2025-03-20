@@ -4,11 +4,4 @@
 #include <stdint.h>
 
 
-
-
-
-
-
-uint64_t vmm_get_hhdm_offset(void);
-
 #endif

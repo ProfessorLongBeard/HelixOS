@@ -11,7 +11,18 @@ static volatile struct limine_memmap_request mm = {
     .revision = 0
 };
 
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_hhdm_request hhdm_req = {
+    .id = LIMINE_HHDM_REQUEST,
+    .revision = 0
+};
+
 struct limine_memmap_response *m = NULL;
+struct limine_hhdm_response *hhdm = NULL;
+
+
+
+
 
 
 
@@ -19,6 +30,10 @@ struct limine_memmap_response *m = NULL;
 void mm_init(void) {
     if (!m) {
         m = mm.response;
+    }
+
+    if (!hhdm) {
+        hhdm = hhdm_req.response;
     }
 }
 
@@ -38,4 +53,8 @@ struct limine_memmap_entry *mm_entry_for_each(uint32_t idx) {
     assert(e != NULL);
 
     return e;
+}
+
+uint64_t mm_get_hhdm_offset(void) {
+    return hhdm->offset;
 }
