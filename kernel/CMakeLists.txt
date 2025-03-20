@@ -18,6 +18,7 @@ target_compile_options(${KERNEL_TARGET} PRIVATE
     -O0
     -Wall
     -Wextra
+    -Wno-unused-function
     -Wno-unused-parameter
     -Wno-unused-variable
     -Wno-unused-but-set-variable
