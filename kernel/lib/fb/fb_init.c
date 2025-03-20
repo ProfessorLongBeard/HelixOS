@@ -42,4 +42,6 @@ void fb_init(void) {
         NULL, 0, 0, 1,
         0, 0,
         0);
+
+    printf("Framebuffer initialized: Base: 0x%lx resolution: %ux%u\n", fb->address, fb->width, fb->height);
 }
