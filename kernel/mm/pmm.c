@@ -57,33 +57,20 @@ void pmm_init(void) {
 }
 
 static bool pmm_is_bit_set(uint64_t idx) {
-    uint64_t bit_idx = PMM_BIT_INDEX(idx);
-    uint64_t bit_offset = PMM_BIT_OFFSET(idx);
-
-    if (!(bmp.bitmap[bit_idx] & (1 << bit_offset))) {
-        return false;
-    }
-
-    return true;
+    return (bmp.bitmap[idx / BITS_PER_BYTE] & (1 << (idx % BITS_PER_BYTE))) != 0;
 }
 
 static void pmm_set_bit(uint64_t idx) {
-    uint64_t bit_idx = PMM_BIT_INDEX(idx);
-    uint64_t bit_offset = PMM_BIT_OFFSET(idx);
-
-    bmp.bitmap[bit_idx] |= (1 << bit_idx);
+    bmp.bitmap[idx / BITS_PER_BYTE] |= (1 << (idx % BITS_PER_BYTE));
 }
 
 static void pmm_clear_bit(uint64_t idx) {
-    uint64_t bit_idx = PMM_BIT_INDEX(idx);
-    uint64_t bit_offset = PMM_BIT_OFFSET(idx);
-
-    bmp.bitmap[bit_idx] &= ~(1 << bit_offset);
+    bmp.bitmap[idx / BITS_PER_BYTE] &= ~(1 << (idx % BITS_PER_BYTE));
 }
 
 static uint64_t pmm_find_first_free(void) {
     for (uint64_t i = 0; i < bmp.total_pages; i++) {
-        if (pmm_is_bit_set(i) == false) {
+        if (!pmm_is_bit_set(i)) {
             return i;
         }
     }
