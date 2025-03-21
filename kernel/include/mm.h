@@ -17,7 +17,6 @@
 #define SIZE_TO_PAGES(size, page_size) ((size + (page_size - 1)) / page_size)
 
 
-extern struct limine_memmap_response *m;
 
 
 

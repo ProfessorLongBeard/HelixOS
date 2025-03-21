@@ -6,11 +6,16 @@
 
 
 
-static freelist_t *free_mem;
-static freelist_t *used_mem;
 
-static size_t total_mem = 0;
-static size_t allocated_mem = 0;
+
+
+static bitmap_t bmp;
+
+static uintptr_t usable_start = 0;
+static size_t usable_size = 0;
+
+
+
 
 
 
@@ -20,84 +25,91 @@ static size_t allocated_mem = 0;
 
 
 void pmm_init(void) {
-    uint64_t hhdm_offset = 0;
-    uint32_t mm_entries = 0;
-    freelist_t *head = NULL;
+    uint64_t hhdm = mm_get_hhdm_offset();
+    uint64_t map_entries = mm_get_num_entries();
 
 
-
-
-    mm_entries = mm_get_num_entries();
-    assert(mm_entries > 0);
-
-    hhdm_offset = mm_get_hhdm_offset();
-    assert(hhdm_offset > 0);
-
-    for (uint32_t i = 0; i < mm_entries; i++) {
+    for (uint64_t i = 0; i < map_entries; i++) {
         struct limine_memmap_entry *e = mm_entry_for_each(i);
 
         if (e->type != LIMINE_MEMMAP_USABLE) {
             continue;
         }
 
-        total_mem += e->length;
+        if (usable_size == 0) {
+            usable_start = e->base;
+        }
 
-        freelist_t *free_node = (freelist_t *)(hhdm_offset + e->base);
-        free_node->base = e->base;
-        free_node->size = e->length;
-        free_node->end = free_node->base + free_node->size;
-        free_node->next = NULL;
+        usable_size += e->length;
+    }
 
-        printf("PMM: Available region: [0x%lx - 0x%lx] region size: %uKB\n", free_node->base, free_node->end, free_node->size / 1024);
+    bmp.total_pages = usable_size / PAGE_SIZE;
+    bmp.bitmap_size = (bmp.total_pages + BITS_PER_BYTE - 1) / BITS_PER_BYTE;
+    bmp.bitmap = (uint8_t *)(hhdm + usable_start);
+    bmp.bitmap_base = (uintptr_t)bmp.bitmap;
 
-        if (!free_mem) {
-            free_mem = free_node;
-            head = free_node;
+    // Initialize bitmap
+    memset(bmp.bitmap, 0, bmp.bitmap_size);
 
-        } else {
-            while(free_mem->next != NULL) {
-                free_mem = free_mem->next;
-            }
+    printf("PMM: Bitmap information:\n");
+    printf("PMM: Bitmap region: [0x%lx - 0x%lx] bitmap size: %uKB\n", (uintptr_t)bmp.bitmap - hhdm, (uintptr_t)bmp.bitmap + bmp.bitmap_size - hhdm, bmp.bitmap_size / 1024);
+    printf("PMM: Total pages: %u, used pages: %u\n", bmp.total_pages, bmp.used_pages);
+}
 
-            free_mem->next = free_node;
+static bool pmm_is_bit_set(uint64_t idx) {
+    uint64_t bit_idx = PMM_BIT_INDEX(idx);
+    uint64_t bit_offset = PMM_BIT_OFFSET(idx);
+
+    if (!(bmp.bitmap[bit_idx] & (1 << bit_offset))) {
+        return false;
+    }
+
+    return true;
+}
+
+static void pmm_set_bit(uint64_t idx) {
+    uint64_t bit_idx = PMM_BIT_INDEX(idx);
+    uint64_t bit_offset = PMM_BIT_OFFSET(idx);
+
+    bmp.bitmap[bit_idx] |= (1 << bit_idx);
+}
+
+static void pmm_clear_bit(uint64_t idx) {
+    uint64_t bit_idx = PMM_BIT_INDEX(idx);
+    uint64_t bit_offset = PMM_BIT_OFFSET(idx);
+
+    bmp.bitmap[bit_idx] &= ~(1 << bit_offset);
+}
+
+static uint64_t pmm_find_first_free(void) {
+    for (uint64_t i = 0; i < bmp.total_pages; i++) {
+        if (pmm_is_bit_set(i) == false) {
+            return i;
         }
     }
 
-    free_mem = head;
+    return -1;
 }
 
 void *pmm_alloc(void) {
-    freelist_t *page = NULL;
-    uint64_t hhdm_offset = mm_get_hhdm_offset();
+    void *ptr = NULL;
+    uint64_t idx = pmm_find_first_free();
+    
+    assert(idx < bmp.total_pages || idx != (uint64_t)-1);
+    pmm_set_bit(idx);
 
+    ptr = (void *)(bmp.bitmap_base + (idx * PAGE_SIZE));
 
-    assert(free_mem != NULL);
+    bmp.used_pages++;
 
-    if (allocated_mem >= total_mem)  {
-        printf("PMM: Switching regions...\n");
-    }
-
-    page = (freelist_t *)(hhdm_offset + free_mem->base);
-    page->base = hhdm_offset + free_mem->base;
-    page->size = PAGE_SIZE;
-    page->end = page->base + page->size;
-    page->next = NULL;
-    void *ptr = (void *)page->base;
-
-    if (!used_mem) {
-        used_mem = page;
-    } else {
-        while(used_mem->next != NULL) {
-            used_mem = used_mem->next;
-        }
-
-        used_mem->next = page;
-    }
-
-    printf("PMM: Allocated page: [0x%lx - 0x%lx] page size %uKB\n", page->base, page->end, page->size / 1024);
-
-    free_mem->base += PAGE_SIZE;
-    allocated_mem += PAGE_SIZE;
-
+    printf("PMM: Allocated page: 0x%lx\n", (uintptr_t)ptr);
     return ptr;
+}
+
+void pmm_free(void *ptr) {
+    uint64_t idx = ((uintptr_t)ptr - bmp.bitmap_base) / PAGE_SIZE;
+    assert(idx < bmp.total_pages);
+
+    pmm_clear_bit(idx);
+    bmp.used_pages--;
 }
