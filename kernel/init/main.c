@@ -9,6 +9,10 @@
 
 
 
+__attribute__((used, section(".limine_requests")))
+static volatile LIMINE_BASE_REVISION(3);
+
+
 
 
 
@@ -25,9 +29,9 @@ void helix_init(void) {
     fb_init();
     mm_init();
     pmm_init();
+    vmm_init();
 
-    void *ptr = pmm_alloc();
-    printf("ptr = 0x%lx\n", (uint64_t)ptr);
-
+    printf("Test!\n");
+    
     __hcf();
 }
