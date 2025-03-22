@@ -80,22 +80,33 @@ static uint64_t pmm_find_first_free(void) {
 
 void *pmm_alloc(void) {
     void *ptr = NULL;
+    uint64_t hhdm = mm_get_hhdm_offset();
     uint64_t idx = pmm_find_first_free();
-    
+    uint64_t bmp_end = bmp.bitmap_base + bmp.bitmap_size;
+
     assert(idx < bmp.total_pages || idx != (uint64_t)-1);
     pmm_set_bit(idx);
 
-    ptr = (void *)(bmp.bitmap_base + (idx * PAGE_SIZE));
+    uintptr_t page_addr = bmp_end + (idx * PAGE_SIZE);
+    page_addr = ALIGN_UP(page_addr, PAGE_SIZE);
+
+    ptr = (void *)page_addr;
 
     bmp.used_pages++;
 
-    printf("PMM: Allocated page: 0x%lx\n", (uintptr_t)ptr);
+    printf("PMM: Allocated page: 0x%lx\n", (uintptr_t)ptr - hhdm);
     return ptr;
 }
 
 void pmm_free(void *ptr) {
-    uint64_t idx = ((uintptr_t)ptr - bmp.bitmap_base) / PAGE_SIZE;
+    uint64_t hhdm = mm_get_hhdm_offset();
+    uintptr_t aligned_ptr = (uintptr_t)ptr;
+    uintptr_t orig_ptr = aligned_ptr - (aligned_ptr % PAGE_SIZE);
+
+    uint64_t idx = ((uintptr_t)orig_ptr - bmp.bitmap_base) / PAGE_SIZE;
     assert(idx < bmp.total_pages);
+
+    printf("PMM: Freeing page: 0x%lx", (uintptr_t)ptr - hhdm);
 
     pmm_clear_bit(idx);
     bmp.used_pages--;
