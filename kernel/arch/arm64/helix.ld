@@ -55,6 +55,8 @@ SECTIONS
         __data_size = __edata - __sdata;
     } :data
 
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+
     .bss : {
         __sbss = .;
         *(.bss .bss.*)
@@ -62,6 +64,8 @@ SECTIONS
         __ebss = .;
         __bss_size = __ebss - __sbss;
     } :data
+
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .stack : {
         . = ALIGN(16);
@@ -71,10 +75,10 @@ SECTIONS
         __stack_size = __estack - __sstack;
     } :stack
 
+    __kernel_end = .;
+
     /DISCARD/ : {
         *(.eh_frame*)
         *(.note .note.*)
     }
-
-    __kernel_end = .;
 }
