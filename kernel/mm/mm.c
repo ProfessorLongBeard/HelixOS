@@ -58,3 +58,20 @@ struct limine_memmap_entry *mm_entry_for_each(uint32_t idx) {
 uint64_t mm_get_hhdm_offset(void) {
     return hhdm->offset;
 }
+
+struct limine_memmap_entry *mm_get_entry_by_type(uint32_t type) {
+    struct limine_memmap_entry *entry = NULL;
+    uint32_t num_entries = mm_get_num_entries();
+
+
+    for (uint32_t i = 0; i < num_entries; i++) {
+        struct limine_memmap_entry *e = mm_entry_for_each(i);
+
+        if (e->type == type) {
+            entry = e;
+            break;
+        }
+    }
+
+    return entry;
+}

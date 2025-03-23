@@ -28,5 +28,6 @@ void mm_init(void);
 uint32_t mm_get_num_entries(void);
 struct limine_memmap_entry *mm_entry_for_each(uint32_t idx);
 uint64_t mm_get_hhdm_offset(void);
+struct limine_memmap_entry *mm_get_entry_by_type(uint32_t type);
 
 #endif
