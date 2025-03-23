@@ -7,6 +7,8 @@
 
 
 
+#define VM_BASE_ADDR    0xFFFF000000000000
+
 
 #define ENTRY_SIZE          512
 
@@ -62,6 +64,16 @@
 #define L2_BLOCK_SIZE   (1UL << L2_SHIFT)
 #define L3_BLOCK_SIZE   (1UL << L3_SHIFT)
 
+#define PGD_IDX(virt) (((virt) >> L0_SHIFT) & 0x1FF)
+#define PUD_IDX(virt) (((virt) >> L1_SHIFT) & 0x1FF)
+#define PMD_IDX(virt) (((virt) >> L2_SHIFT) & 0x1FF)
+#define PTE_IDX(virt) (((virt) >> L3_SHIFT) & 0x1FF)
+
+
+
+
+
+
 
 
 
@@ -79,5 +91,6 @@ void vmm_unmap(uint64_t *table, uint64_t virt, uint64_t phys);
 void vmm_flush_dcache_addr(uint64_t addr);
 void vmm_flush_icache_addr(uint64_t addr);
 void vmm_flush_cache_range(uint64_t virt_start, uint64_t virt_end);
+void vmm_unmap_range(uint64_t *table, uint64_t virt_start, uint64_t virt_end);
 
 #endif
