@@ -91,6 +91,6 @@ void vmm_unmap(uint64_t *table, uint64_t virt, uint64_t phys);
 void vmm_flush_dcache_addr(uint64_t addr);
 void vmm_flush_icache_addr(uint64_t addr);
 void vmm_flush_cache_range(uint64_t virt_start, uint64_t virt_end);
-void vmm_unmap_range(uint64_t *table, uint64_t virt_start, uint64_t virt_end);
+void vmm_unmap_range(uint64_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys_start);
 
 #endif

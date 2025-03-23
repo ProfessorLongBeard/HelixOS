@@ -129,7 +129,7 @@ void vmm_map_range(uint64_t *table, uint64_t virt_start, uint64_t virt_end, uint
     }
 }
 
-void vmm_unmap_range(uint64_t *table, uint64_t virt_start, uint64_t virt_end) {
+void vmm_unmap_range(uint64_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys_start) {
     assert(table != NULL);
     assert(virt_start < virt_end);
 
@@ -137,7 +137,7 @@ void vmm_unmap_range(uint64_t *table, uint64_t virt_start, uint64_t virt_end) {
     uint64_t num_pages = SIZE_TO_PAGES(virt_size, PAGE_SIZE);
 
     for (uint64_t i = 0; i < num_pages; i++) {
-        vmm_unmap(table, virt_start + (i * PAGE_SIZE), virt_end + (i * PAGE_SIZE));
+        vmm_unmap(table, virt_start + (i * PAGE_SIZE), phys_start + (i * PAGE_SIZE));
     }
 }
 
