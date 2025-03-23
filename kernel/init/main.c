@@ -19,8 +19,6 @@ static volatile LIMINE_BASE_REVISION(3);
 
 
 
-
-
 void helix_init(void) {
     if (LIMINE_BASE_REVISION_SUPPORTED == false) {
         __hcf();
