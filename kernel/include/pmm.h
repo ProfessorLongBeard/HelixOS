@@ -9,13 +9,10 @@
 
 #define BITS_PER_BYTE   8
 
-#define PMM_BIT_INDEX(x) (x / BITS_PER_BYTE)
-#define PMM_BIT_OFFSET(x) (x % BITS_PER_BYTE)
-
 
 
 typedef struct {
-    uintptr_t   bitmap_base;
+    uint64_t    bitmap_base;
     size_t      bitmap_size;
     size_t      total_pages;
     size_t      used_pages;
@@ -26,5 +23,7 @@ typedef struct {
 void pmm_init(void);
 void *pmm_alloc(void);
 void pmm_free(void *ptr);
+uint64_t pmm_get_bitmap_base(void);
+size_t pmm_get_bitmap_size(void);
 
 #endif
