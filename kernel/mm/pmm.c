@@ -99,6 +99,7 @@ void *pmm_alloc(void) {
     page_addr = ALIGN_UP(page_addr, PAGE_SIZE);
 
     ptr = (void *)page_addr;
+    memset(ptr, 0, PAGE_SIZE);
 
     bmp.used_pages++;
 
