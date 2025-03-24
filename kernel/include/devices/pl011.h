@@ -4,8 +4,8 @@
 #include <stdint.h>
 
 
-
 #define UART_BASE   0x09000000
+
 
 
 #define UART_CTS    (1UL << 0UL)
@@ -56,9 +56,9 @@
 
 typedef struct {
     uint32_t    uart_dr;                // 0x000 - UART data register
-    uint32_t    uart_sr_cr;             // 0x004 - UART status/error clear register
-    uint8_t     __reserved1[12];        // 0x008 - 0x014 reserved
-    uint32_t    uart_fr;                // 0x018 - UART fifo register?
+    uint32_t    uart_rsr_ecr;           // 0x004 - UART status/error clear register
+    uint8_t     __reserved1[16];        // 0x008 - 0x018 reserved
+    uint32_t    uart_fr;                // 0x018 - UART flag register
     uint32_t    __reserved2;            // 0x01C - reserved
     uint32_t    uart_lpr;               // 0x020 - UART low-power counter register
     uint32_t    uart_ibrd;              // 0x024 - UART integer baudrate register
