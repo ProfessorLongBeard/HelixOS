@@ -1,10 +1,11 @@
 #include <stdint.h>
 #include <devices/pl011.h>
+#include <vmm.h>
 
 
 
 
-uart_t *pl011 = (uart_t *)UART_BASE;
+uart_t *pl011 = (uart_t *)(VMM_RECURSIVE_BASE + UART_BASE);
 
 
 
