@@ -58,10 +58,6 @@ void gic_init(void) {
     grp1 |= 1;
     __icc_igrpen1_write(grp1);
 
-    for (int i = 0; i < MAX_IRQ_ID; i++) {
-        GICD_ISENABLER(i / 32) = (1U << ((i % 32)));
-    }
-
     __daif_clr();
     printf("GIC: Initialized!\n");
 }
