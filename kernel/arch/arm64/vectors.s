@@ -118,7 +118,7 @@ _vector_table:
 
 __aarch64_synchronous_handler:
     // Save general purpous registers
-    pusha
+    pusha 0
 
     // Save return address
     mrs x0, elr_el1
@@ -139,16 +139,16 @@ __aarch64_synchronous_handler:
     msr elr_el1, x0
 
     // Restore general purpous registers
-    popa
+    popa 0
     eret
 
 __aarch64_irq_handler:
     // Save general purpous registers
-    pusha
+    pusha 0
 
     // Handle interrupt
     bl irq_handler
 
     // Restore general purpous registers
-    popa
-    
+    popa 0
+    eret
