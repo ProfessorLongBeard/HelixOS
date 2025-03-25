@@ -4,8 +4,11 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <vmm.h>
+#include <stdbool.h>
 
 
+
+#define MAX_IRQ_ID  256
 
 #define GIC_DIST_BASE       (VMM_RECURSIVE_BASE + 0x08000000)
 #define GIC_CPU_BASE        (VMM_RECURSIVE_BASE + 0x08010000)
@@ -51,6 +54,9 @@
 #define GICC_CTLR_FIQ_BYPASS_GRP1   (1UL << 5UL)
 #define GICC_CTLR_IRQ_BYPASS_GRP1   (1UL << 6UL)
 #define GICC_CTLR_EIO_MODE_NS       (1UL << 9UL)
+
+#define GICR_WAKER_CPU_SLEEP        (1UL << 0UL)
+#define GICR_WAKER_CHILDREN_SLEEP   (1UL << 1UL)
 
 #define GICR_CTLR_ENABLE_LPI        (1UL << 0UL)
 #define GICR_CTLR_CES               (1UL << 1UL)
@@ -138,10 +144,16 @@
 
 
 
+
+
+
+
+
 void gic_init(void);
 void gic_enable_irq(int irq);
 void gic_disable_irqI(int irq);
 void gic_set_irq_priority(int irq, uint8_t priority);
 void gic_trigger_irq(int irq);
+bool gic_irq_pending(int irq);
 
 #endif

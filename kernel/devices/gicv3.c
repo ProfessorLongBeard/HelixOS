@@ -1,5 +1,6 @@
 #include <kstdio.h>
 #include <arch.h>
+#include <stdbool.h>
 #include <devices/gicv3.h>
 
 
@@ -29,30 +30,40 @@
 
 
 
+
 void gic_init(void) {
-    // Enablele non-secure group 1 (non-secure) interrupts
-    GICD_CTLR |= GICD_CTLR_ENABLE_GRP1_NS;
+    GICD_CTLR = GICD_CTLR_ENABLE_GRP0 | GICD_CTLR_ENABLE_GRP1_NS | GICD_CTLR_ENABLE_GRP1_S | GICD_CTLR_ENABLE_ARE_S | GICD_CTLR_ENABLE_ARE_NS;
 
-    // Set all priorities
-    uint64_t priority = ICC_PMR_ALL;
-    __icc_pmr_write(priority);
+    // Wake GIC CPU interface
+    uint32_t waker = GICR_WAKER;
+    waker &= ~(GICR_WAKER_CPU_SLEEP);
+    GICR_WAKER = waker;
 
-    // Enable SRE
+    while(GICR_WAKER & GICR_WAKER_CPU_SLEEP);
+
     uint64_t sre = __icc_sre_read();
-    sre |= ICC_SRE_ENABLE;
+    sre |= 1;
     __icc_sre_write(sre);
 
-    // Enable group 1 interrupts
-    uint64_t grp_enable = ICC_IGRPEN1_ENABLE;
-    __icc_igrpen1_write(grp_enable);
-
-    // Enable GIC CPU interface
-    uint64_t ctlr = __icc_ctlr_read();
-    ctlr |= ICC_CTLR_CBPR;
+    uint32_t ctlr = __icc_ctlr_read();
+    ctlr |= ICC_CTLR_EOI_MODE;
     __icc_ctlr_write(ctlr);
 
-    // Unmask interrupts
+    // Set default priority
+    __icc_pmr_write(0xA0);
+
+    __icc_brp1_write(0b111);
+
+    uint64_t grp1 = __icc_igrpen1_read();
+    grp1 |= 1;
+    __icc_igrpen1_write(grp1);
+
+    for (int i = 0; i < MAX_IRQ_ID; i++) {
+        GICD_ISENABLER(i / 32) = (1U << ((i % 32)));
+    }
+
     __daif_clr();
+    printf("GIC: Initialized!\n");
 }
 
 int gic_ack_irq(void) {
@@ -79,6 +90,17 @@ void gic_disable_irq(int irq) {
     GICD_ICENABLER(reg) = (1UL << bit);
 }
 
+bool gic_irq_pending(int irq) {
+    int reg = irq / 32;
+    int bit = irq % 32;
+
+    if (GICD_ISPENDR(reg)) {
+        return true;
+    }
+
+    return false;
+}
+
 void gic_set_irq_priority(int irq, uint8_t priority) {
     int reg = irq / 32;
     int shift = (irq % 4) * 8;
@@ -90,4 +112,9 @@ void gic_set_irq_priority(int irq, uint8_t priority) {
     val |= (priority << shift);
 
     GICD_IPRIORITYR(reg) = val;
+}
+
+void gic_trigger_irq(int irq) {
+    uint32_t sgi_val = (0UL << 16UL) | (irq);
+    GICD_SGIR = sgi_val;
 }
