@@ -4,6 +4,11 @@
 #include <stdint.h>
 
 
+#define DAIF_FIQ    (1UL << 6UL)
+#define DAIF_IRQ    (1UL << 7UL)
+#define DAIF_SERR   (1UL << 8UL)
+#define DAIF_DMASK  (1UL << 9UL)
+
 #define MAIR_ATTR(attr, idx) ((uint64_t)(attr) << (8ULL * idx))
 
 #define MT_NORMAL           0U
@@ -107,6 +112,20 @@ extern void __dcache_flush_addr(uint64_t addr);
 extern void __icache_flush_addr(uint64_t addr);
 
 extern void __flush_cache_range(uint64_t start, uint64_t end);
+
+extern uint64_t __icc_pmr_read(void);
+extern void __icc_pmr_write(uint64_t pmr);
+extern uint64_t __icc_sre_read(void);
+extern void __icc_sre_write(uint64_t sre);
+extern uint64_t __icc_igrpen1_read(void);
+extern void __icc_igrpen1_write(uint64_t grp);
+extern uint64_t __icc_ctlr_read(void);
+extern void __icc_ctlr_write(uint64_t ctlr);
+extern uint64_t __icc_iar1_read(void);
+extern void __icc_eoir1_write(uint64_t eoir);
+
+extern void __daif_set(void);
+extern void __daif_clr(void);
 
 extern void __hcf(void);
 

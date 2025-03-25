@@ -81,6 +81,66 @@ __icache_flush_addr:
     isb
     ret
 
+.global __icc_pmr_read
+__icc_pmr_read:
+    mrs x0, icc_pmr_el1
+    ret
+
+.global __icc_pmr_write
+__icc_pmr_write:
+    msr icc_pmr_el1, x0
+    ret
+
+.global __icc_sre_read
+__icc_sre_read:
+    mrs x0, icc_sre_el1
+    ret
+
+.global __icc_sre_write
+__icc_sre_write:
+    msr icc_sre_el1, x0
+    ret
+
+.global __icc_igrpen1_read
+__icc_igrpen1_read:
+    mrs x0, icc_igrpen1_el1
+    ret
+
+.global __icc_igrpen1_write
+__icc_igrpen1_write:
+    msr icc_igrpen1_el1, x0
+    ret
+
+.global __icc_ctlr_read
+__icc_ctlr_read:
+    mrs x0, icc_ctlr_el1
+    ret
+
+.global __icc_ctlr_write
+__icc_ctlr_write:
+    msr icc_ctlr_el1, x0
+    ret
+
+.global __icc_iar1_read
+__icc_iar1_read:
+    mrs x0, icc_iar1_el1
+    ret
+
+.global __icc_eoir1_write
+__icc_eoir1_write:
+    msr ICC_EOIR1_EL1, x0
+    ret
+
+.global __daif_set
+__daif_set:
+    msr DAIFSet, #0b0011
+    ret
+
+.global __daif_clr
+__daif_clr:
+    msr DAIFClr, #0b0011
+    ret
+
 .global __flush_cache_range
 __flush_cache_range:
     stp x2, x3, [sp, #-16]! // Preserve x2, and x3
