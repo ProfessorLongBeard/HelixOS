@@ -115,14 +115,24 @@ extern void __flush_cache_range(uint64_t start, uint64_t end);
 
 extern uint64_t __icc_pmr_read(void);
 extern void __icc_pmr_write(uint64_t pmr);
+
 extern uint64_t __icc_sre_read(void);
 extern void __icc_sre_write(uint64_t sre);
+
 extern uint64_t __icc_igrpen1_read(void);
 extern void __icc_igrpen1_write(uint64_t grp);
+
 extern uint64_t __icc_ctlr_read(void);
 extern void __icc_ctlr_write(uint64_t ctlr);
+
 extern uint64_t __icc_iar1_read(void);
 extern void __icc_eoir1_write(uint64_t eoir);
+
+extern uint64_t __icc_igrpen0_read(void);
+extern void __icc_igrpen0_write(uint64_t grp);
+
+extern uint64_t __icc_brp1_read(void);
+extern void __icc_brp1_write(uint64_t brp);
 
 extern void __daif_set(void);
 extern void __daif_clr(void);
