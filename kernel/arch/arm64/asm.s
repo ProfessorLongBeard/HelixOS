@@ -81,6 +81,17 @@ __icache_flush_addr:
     isb
     ret
 
+.global __icc_brp1_read
+__icc_brp1_read:
+    mrs x0, icc_bpr1_el1
+    ret
+
+.global __icc_brp1_write
+__icc_brp1_write:
+    msr icc_bpr1_el1, x0
+    isb
+    ret
+
 .global __icc_pmr_read
 __icc_pmr_read:
     mrs x0, icc_pmr_el1
@@ -89,6 +100,7 @@ __icc_pmr_read:
 .global __icc_pmr_write
 __icc_pmr_write:
     msr icc_pmr_el1, x0
+    isb
     ret
 
 .global __icc_sre_read
@@ -99,6 +111,18 @@ __icc_sre_read:
 .global __icc_sre_write
 __icc_sre_write:
     msr icc_sre_el1, x0
+    isb
+    ret
+
+.global __icc_igrpen0_read
+__icc_igrpen0_read:
+    mrs x0, icc_igrpen0_el1
+    ret
+
+.global __icc_igrpen0_write
+__icc_igrpen0_write:
+    msr icc_igrpen0_el1, x0
+    isb
     ret
 
 .global __icc_igrpen1_read
@@ -109,6 +133,7 @@ __icc_igrpen1_read:
 .global __icc_igrpen1_write
 __icc_igrpen1_write:
     msr icc_igrpen1_el1, x0
+    isb
     ret
 
 .global __icc_ctlr_read
@@ -133,12 +158,12 @@ __icc_eoir1_write:
 
 .global __daif_set
 __daif_set:
-    msr DAIFSet, #0b0011
+    msr DAIFSet, #0b1111
     ret
 
 .global __daif_clr
 __daif_clr:
-    msr DAIFClr, #0b0011
+    msr DAIFClr, #0b1111
     ret
 
 .global __flush_cache_range
