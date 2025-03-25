@@ -84,7 +84,7 @@
 #define GICD_ICFGR(x)       (*(volatile uint32_t *)(GIC_DIST_BASE + 0x0C00 + (x) * 4))      // Interrupt configuration register
 #define GICD_IGRPMODR(x)    (*(volatile uint32_t *)(GIC_DIST_BASE + 0x0D00 + (x) * 4))      // Interrupt group modifier register
 #define GICD_NSACR(x)       (*(volatile uint32_t *)(GIC_DIST_BASE + 0x0E00 + (X) * 4))      // Non-secure access control register
-#define GICD_SGIR(x)        (*(volatile uint32_t *)(GIC_DIST_BASE + 0x0F00))                // Software generated interrupt register
+#define GICD_SGIR           (*(volatile uint32_t *)(GIC_DIST_BASE + 0x0F00))                // Software generated interrupt register
 #define GICD_CPENDSGIR(x)   (*(volatile uint32_t *)(GIC_DIST_BASE + 0x0F10 + (x) * 4))      // SGI clear-pending register
 #define GICD_SPENDSGIR(x)   (*(volatile uint32_t *)(GIC_DIST_BASE + 0x0F20 + (x) * 4))      // SGI set-pending register
 #define GICD_INMIR(x)       (*(volatile uint32_t *)(GIC_DIST_BASE + 0x0F80 + (x) * 4))      // Non-maskable interrupts
@@ -142,5 +142,6 @@ void gic_init(void);
 void gic_enable_irq(int irq);
 void gic_disable_irqI(int irq);
 void gic_set_irq_priority(int irq, uint8_t priority);
+void gic_trigger_irq(int irq);
 
 #endif
