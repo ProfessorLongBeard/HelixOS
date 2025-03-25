@@ -2,10 +2,12 @@
 #define UART_H
 
 #include <stdint.h>
+#include <vmm.h>
 
 
-#define UART_BASE   0x09000000
+#define UART_BASE   (VMM_RECURSIVE_BASE + 0x09000000)
 
+#define UART_IRQ    33
 
 
 #define UART_CTS    (1UL << 0UL)
@@ -45,6 +47,18 @@
 #define UART_SIRED  (1UL << 1UL)
 #define UART_SIRLP  (1UL << 2UL)
 
+#define UART_RXIFLSEL   (2UL << 3UL)
+#define UART_TXIFLSEL   (2UL << 0UL)
+
+#define UART_RXIC  (1 << 4)
+#define UART_TXIC  (1 << 5)
+
+#define UART_RXIFLSEL_POS    6
+#define UART_TXIFLSEL_POS    4 
+#define UART_RXIFLSEL_MASK   (0x7 << UART_RXIFLSEL_POS)
+#define UART_TXIFLSEL_MASK   (0x7 << UART_TXIFLSEL_POS)
+
+
 
 
 
@@ -83,5 +97,6 @@ typedef struct {
 void uart_init(void);
 void uart_putc(char ch);
 void uart_puts(char *s);
+void uart_irq_handler(void);
 
 #endif
