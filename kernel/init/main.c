@@ -4,6 +4,7 @@
 #include <framebuffer.h>
 #include <kstdlib.h>
 #include <mm.h>
+#include <devices/pl011.h>
 
 
 
@@ -28,8 +29,10 @@ void helix_init(void) {
     mm_init();
     pmm_init();
     vmm_init();
+    gic_init();
+    uart_init();
 
     printf("Test!\n");
-    
+
     __hcf();
 }
