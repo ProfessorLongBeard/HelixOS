@@ -146,8 +146,16 @@ __aarch64_irq_handler:
     // Save general purpous registers
     pusha 0
 
+    // Save return address
+    mrs x0, elr_el1
+    stp x0, xzr, [sp, #-16]!
+
     // Handle interrupt
     bl irq_handler
+
+    // Restore return address
+    ldp x0, xzr, [sp], #16
+    msr elr_el1, x0
 
     // Restore general purpous registers
     popa 0
