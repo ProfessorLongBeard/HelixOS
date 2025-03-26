@@ -9,7 +9,7 @@ HDD_IMG=${HELIX_BINARY_DIR}/helix_hdd.img
 
 QEMU=qemu-system-aarch64
 
-MACHINE=virt
+MACHINE=virt,gic-version=3
 CPU=cortex-a53
 SMP=1
 MEM=4G
@@ -22,7 +22,7 @@ ln -sf ${HELIX_SOURCE_DIR}/.gdbinit ${HELIX_BINARY_DIR}/scripts/
 
 ${QEMU} \
     -s -S \
-    -d guest_errors,cpu_reset \
+    -d guest_errors,cpu_reset,int \
     -M ${MACHINE} \
     -cpu ${CPU} \
     -smp ${SMP} \
@@ -36,5 +36,4 @@ ${QEMU} \
     -device usb-mouse \
     -net none \
     -device ramfb \
-    -serial stdio \
     -display gtk,zoom-to-fit=off

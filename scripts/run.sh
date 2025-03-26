@@ -9,7 +9,7 @@ HDD_IMG=${HELIX_BINARY_DIR}/helix_hdd.img
 
 QEMU=qemu-system-aarch64
 
-MACHINE=virt
+MACHINE=virt,gic-version=3
 CPU=cortex-a53
 SMP=1
 MEM=4G
