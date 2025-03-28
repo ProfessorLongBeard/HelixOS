@@ -22,7 +22,6 @@ void timer_init(void) {
     irq_register(VTIMER_IRQ, timer_irq_handler);
     gic_set_irq_group_ns(VTIMER_IRQ);
     gic_set_irq_level_trigger(VTIMER_IRQ);
-    gic_set_irq_priority(VTIMER_IRQ, 0xF8);
     gic_enable_irq(VTIMER_IRQ);
 }
 
@@ -78,5 +77,8 @@ uint64_t timer_phys_get_cval(void) {
 void timer_irq_handler(void) {
     printf("Timer IRQ handler called!\n");
 
-    __icc_eoir1_write(TIMER_IRQ);
+    // TODO: Reset timer
+    timer_disable();
+
+    gic_clear_irq(VTIMER_IRQ);
 }
