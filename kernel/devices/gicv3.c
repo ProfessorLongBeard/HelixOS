@@ -38,8 +38,6 @@ void gic_init(void) {
     // any race conditions that might cause an incorrectly configured GIC
     while(GICD_CTLR & GICD_CTLR_ENABLE_RWP);
 
-    GICR_CTLR(0) &= ~(GICR_CTLR_RWP);
-
     // Wake GIC CPU interface
     GICR_WAKER(0) &= ~(GICR_WAKER_CPU_SLEEP);
 
@@ -91,15 +89,7 @@ int gic_ack_irq(void) {
 }
 
 void gic_clear_irq(int irq) {
-    int reg = irq / 32;
-    int bit = irq % 32;
-
-    if (irq < 32) {
-        GICR_ICPENDR0(0) = (1UL << bit);
-
-    } else {
-        GICD_ICPENDR(reg) = (1UL << bit);
-    }
+    __icc_eoir1_write(irq);
 }
 
 void gic_enable_irq(int irq) {
