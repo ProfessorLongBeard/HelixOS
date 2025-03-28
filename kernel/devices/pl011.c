@@ -38,6 +38,7 @@ void uart_init(void) {
 
     irq_register(UART_IRQ, uart_irq_handler);
     gic_set_irq_group_ns(UART_IRQ);
+    gic_set_irq_priority(UART_IRQ, 0xF8);
     gic_set_irq_level_trigger(UART_IRQ);
     gic_enable_irq(UART_IRQ);
 }
@@ -54,7 +55,7 @@ void uart_irq_handler(void) {
     }
 
     gic_clear_irq(UART_IRQ);
-} 
+}
 
 void uart_putc(char ch) {
     while(pl011->uart_fr & UART_TXFF);
