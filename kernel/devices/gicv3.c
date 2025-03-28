@@ -52,7 +52,7 @@ void gic_init(void) {
     __icc_sre_write(sre);
 
     // Allow all interrupts
-    __icc_pmr_write(0xFF);
+    __icc_pmr_write(ICC_PMR_ALL);
 
     // Set binary point
     __icc_brp1_write(0b111);
@@ -76,6 +76,12 @@ void gic_init(void) {
     __daif_clr();
 
     printf("GIC: Initialized!\n");
+}
+
+int gic_ack_hppi_irq(void) {
+    int hppi = __icc_hppir_read();
+
+    return hppi;
 }
 
 int gic_ack_irq(void) {

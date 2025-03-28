@@ -109,6 +109,11 @@ __icc_pmr_write:
     isb
     ret
 
+.global __icc_rpr_read
+__icc_rpr_read:
+    mrs x0, icc_rpr_el1
+    ret
+
 .global __icc_sre_read
 __icc_sre_read:
     mrs x0, icc_sre_el1
@@ -155,6 +160,11 @@ __icc_ctlr_write:
 .global __icc_iar1_read
 __icc_iar1_read:
     mrs x0, icc_iar1_el1
+    ret
+
+.global __icc_hppir_read
+__icc_hppir_read:
+    mrs x0, icc_hppir1_EL1
     ret
 
 .global __icc_eoir1_write

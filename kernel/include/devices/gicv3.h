@@ -151,5 +151,6 @@ void gic_clear_irq(int irq);
 void gic_set_irq_group_ns(int irq);
 void gic_set_irq_level_trigger(int irq);
 void gic_set_irq_edge_trigger(int irq);
+int gic_ack_hppi_irq(void);
 
 #endif
