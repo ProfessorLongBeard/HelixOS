@@ -32,42 +32,49 @@
 
 
 void gic_init(void) {
-    GICD_CTLR = GICD_CTLR_ENABLE_GRP0 | GICD_CTLR_ENABLE_GRP1_NS | GICD_CTLR_ENABLE_ARE_NS | GICD_CTLR_ENABLE_GRP1_S | GICD_CTLR_ENABLE_ARE_S;
+    GICD_CTLR = GICD_CTLR_ENABLE_GRP0 | GICD_CTLR_ENABLE_GRP1_NS | GICD_CTLR_ENABLE_ARE_NS;
 
     // Wait for register writes in distributor to take effect. This will prevent
     // any race conditions that might cause an incorrectly configured GIC
     while(GICD_CTLR & GICD_CTLR_ENABLE_RWP);
 
-    // Wake GIC CPU interface
-    uint32_t waker = GICR_WAKER(0);
-    waker &= ~(GICR_WAKER_CPU_SLEEP);
-    GICR_WAKER(0) = waker;
+    GICR_CTLR(0) &= ~(GICR_CTLR_RWP);
 
-    // Wait for children to wake up
+    // Wake GIC CPU interface
+    GICR_WAKER(0) &= ~(GICR_WAKER_CPU_SLEEP);
+
+    // Wait for child interfaces to wake up
     while(GICR_WAKER(0) & GICR_WAKER_CHILDREN_SLEEP);
 
+    // Enable system registers
     uint64_t sre = __icc_sre_read();
     sre |= 1;
     __icc_sre_write(sre);
 
     // Allow all interrupts
-    __icc_pmr_write(ICC_PMR_ALL);
+    __icc_pmr_write(0xFF);
 
+    // Set binary point
     __icc_brp1_write(0b111);
 
+    // Set non-secure group 1
     __icc_igrpen1_read();
     uint64_t grp1 = 1;
     __icc_igrpen1_write(grp1);
     
+    // Set non-secure common binary point, end-of-interrupt, etc
     uint32_t ctlr = __icc_ctlr_read();
     ctlr |= ICC_CTLR_CPBR_NS | ICC_CTLR_EOI_NS | ICC_CTLR_EOI_MODE;
     __icc_ctlr_write(ctlr);
 
     for (int irq = 0; irq < MAX_IRQ_ID; irq++) {
+        // Disable all IRQ's by default
         gic_disable_irq(irq);
     }
 
+    // Unmask interrupts
     __daif_clr();
+
     printf("GIC: Initialized!\n");
 }
 
