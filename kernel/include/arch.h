@@ -137,6 +137,30 @@ extern void __icc_brp1_write(uint64_t brp);
 extern void __daif_set(void);
 extern void __daif_clr(void);
 
+extern uint64_t __cntp_ctl_read(void);
+extern void __cntp_ctl_write(uint64_t cnt);
+
+extern void __cntp_tval_write(uint64_t cntp);
+
+extern uint64_t __cntpct_read(void);
+
+extern uint64_t __cntfrq_read(void);
+extern void __cntfrq_write(uint64_t frq);
+
+extern uint64_t __cntv_ctl_read(void);
+extern void __cntv_ctl_write(uint64_t cnt);
+
+extern uint64_t __cntv_tval_read(void);
+extern uint64_t __cntp_tval_read(void);
+extern void __cntv_tval_write(uint32_t cnt);
+extern void __cntp_cval_write(uint64_t cnt);
+
+extern uint64_t __cntvct_read(void);
+extern uint64_t __cntv_cval_read(void);
+extern void __cntv_cval_write(uint32_t cnt);
+
+extern void __icc_sgi1r_write(uint64_t sgi);
+
 extern void __hcf(void);
 
 #endif

@@ -81,6 +81,12 @@ __icache_flush_addr:
     isb
     ret
 
+.global __icc_sgi1r_write
+__icc_sgi1r_write:
+    msr icc_sgi1r_el1, x0
+    isb
+    ret
+
 .global __icc_brp1_read
 __icc_brp1_read:
     mrs x0, icc_bpr1_el1
@@ -165,6 +171,88 @@ __daif_set:
 __daif_clr:
     msr DAIFClr, #0b1111
     ret
+
+.global __cntvct_read
+__cntvct_read:
+    mrs x0, cntvct_el0
+    ret
+
+.global __cntv_cval_read
+__cntv_cval_read:
+    mrs x0, cntv_cval_el0
+    ret
+
+.global __cntv_cval_write
+__cntv_cval_write:
+    msr cntv_cval_el0, x0
+    isb
+    ret
+
+.global __cntpct_read
+__cntpct_read:
+    mrs x0, cntpct_el0
+    ret
+
+.global __cntp_tval_write
+__cntp_tval_write:
+    msr cntp_tval_el0, x0
+    isb
+    ret
+
+.global __cntv_tval_read
+__cntv_tval_read:
+    mrs x0, cntv_tval_el0
+    ret
+
+.global __cntp_tval_read
+__cntp_tval_read:
+    mrs x0, cntp_tval_el0
+    ret
+
+.global __cntv_tval_write
+__cntv_tval_write:
+    msr cntv_tval_el0, x0
+    isb
+    ret
+
+.global __cntfrq_read
+__cntfrq_read:
+    mrs x0, cntfrq_el0
+    ret
+
+.global __cntfrq_write
+__cntfrq_write:
+    msr cntfrq_el0, x0
+    isb
+    ret
+
+.global __cntv_ctl_read
+__cntv_ctl_read:
+    mrs x0, cntv_ctl_el0
+    ret
+
+.global __cntv_ctl_write
+__cntv_ctl_write:
+    msr cntv_ctl_el0, x0
+    isb
+    ret
+
+.global __cntp_ctl_read
+    mrs x0, cntp_ctl_el0
+    ret
+
+.global __cntp_ctl_write
+__cntp_ctl_write:
+    msr cntp_ctl_el0, x0
+    isb
+    ret
+
+.global __cntp_cval_write
+__cntp_cval_write:
+    msr cntp_cval_el0, x0
+    isb
+    ret
+
 
 .global __flush_cache_range
 __flush_cache_range:
