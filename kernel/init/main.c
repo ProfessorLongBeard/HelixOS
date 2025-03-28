@@ -4,6 +4,9 @@
 #include <framebuffer.h>
 #include <kstdlib.h>
 #include <mm.h>
+#include <arch.h>
+#include <devices/timer.h>
+#include <devices/gicv3.h>
 #include <devices/pl011.h>
 
 
@@ -30,9 +33,12 @@ void helix_init(void) {
     pmm_init();
     vmm_init();
     gic_init();
+    timer_init();
     uart_init();
 
-    printf("Test!\n");
+    timer_set(1000);
+
+    printf("Done!\n");
 
     __hcf();
 }
