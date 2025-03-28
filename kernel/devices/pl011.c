@@ -35,15 +35,25 @@ void uart_init(void) {
     pl011->uart_imsc |= UART_RXIC | UART_TXIC;
 
     irq_register(UART_IRQ, uart_irq_handler);
+    gic_set_irq_group_ns(UART_IRQ);
+    gic_set_irq_level_trigger(UART_IRQ);
     gic_enable_irq(UART_IRQ);
 
     pl011->uart_cr |= UART_EN | UART_TXE | UART_RXE;
 }
 
 void uart_irq_handler(void) {
-    // Handle IRQ
-
     printf("UART IRQ handler called!\n");
+    
+    if (pl011->uart_mis & UART_RXIC) {
+        pl011->uart_icr = UART_RXIC;
+    }
+
+    if (pl011->uart_mis & UART_TXIC) {
+        pl011->uart_icr = UART_TXIC;
+    }
+
+    gic_clear_irq(UART_IRQ);
 } 
 
 void uart_putc(char ch) {
