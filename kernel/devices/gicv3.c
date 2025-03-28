@@ -32,7 +32,7 @@
 
 
 void gic_init(void) {
-    GICD_CTLR = GICD_CTLR_ENABLE_GRP1_NS | GICD_CTLR_ENABLE_ARE_NS;
+    GICD_CTLR = GICD_CTLR_ENABLE_GRP0 | GICD_CTLR_ENABLE_GRP1_NS | GICD_CTLR_ENABLE_ARE_NS | GICD_CTLR_ENABLE_GRP1_S | GICD_CTLR_ENABLE_ARE_S;
 
     // Wait for register writes in distributor to take effect. This will prevent
     // any race conditions that might cause an incorrectly configured GIC
@@ -46,12 +46,8 @@ void gic_init(void) {
     // Wait for children to wake up
     while(GICR_WAKER(0) & GICR_WAKER_CHILDREN_SLEEP);
 
-    uint32_t ctlr = __icc_ctlr_read();
-    ctlr |= ICC_CTLR_CPBR_NS | ICC_CTLR_EOI_NS;
-    __icc_ctlr_write(ctlr);
-
     uint64_t sre = __icc_sre_read();
-    sre |= ICC_SRE_ENABLE;
+    sre |= 1;
     __icc_sre_write(sre);
 
     // Allow all interrupts
@@ -59,9 +55,13 @@ void gic_init(void) {
 
     __icc_brp1_write(0b111);
 
-    uint64_t grp1 = __icc_igrpen1_read();
-    grp1 |= ICC_IGRPEN1_ENABLE;
+    __icc_igrpen1_read();
+    uint64_t grp1 = 1;
     __icc_igrpen1_write(grp1);
+    
+    uint32_t ctlr = __icc_ctlr_read();
+    ctlr |= ICC_CTLR_CPBR_NS | ICC_CTLR_EOI_NS | ICC_CTLR_EOI_MODE;
+    __icc_ctlr_write(ctlr);
 
     __daif_clr();
     printf("GIC: Initialized!\n");
@@ -74,7 +74,15 @@ int gic_ack_irq(void) {
 }
 
 void gic_clear_irq(int irq) {
-    __icc_eoir1_write(irq);
+    int reg = irq / 32;
+    int bit = irq % 32;
+
+    if (irq < 32) {
+        GICR_ICPENDR0(0) = (1UL << bit);
+
+    } else {
+        GICD_ICPENDR(reg) = (1UL << bit);
+    }
 }
 
 void gic_enable_irq(int irq) {
@@ -83,10 +91,10 @@ void gic_enable_irq(int irq) {
 
 
     if (irq < 32) {
-        GICR_NSACR(0) |= (3UL << (bit * 2));
+        GICR_NSACR(0) |= (2UL << (bit * 2));
         GICR_ISENABLER0(0) |= (1UL << bit);
     } else {
-        GICD_NSACR(reg) |= (3UL << (bit * 2));
+        GICD_NSACR(reg) |= (2UL << (bit * 2));
         GICD_ISENABLER(reg) |= (1UL << bit);
     }
 }
@@ -109,7 +117,7 @@ bool gic_irq_pending(int irq) {
 
 
     if (irq < 32) {
-        pend = GICR_ICPENDR0(0) = (1UL << irq);
+        pend = GICR_ICPENDR0(0);
     } else {
         pend = GICD_ICPENDR(reg);
     }
@@ -148,25 +156,15 @@ void gic_set_irq_priority(int irq, uint32_t priority) {
     }
 }
 
-void gic_set_irq_group(int irq, uint32_t group) {
+void gic_set_irq_group_ns(int irq) {
     int reg = irq / 32;
     int bit = irq % 32;
 
 
     if (irq < 32) {
-        if (group == 0) {
-            GICR_IGROUP0(0) &= ~(1UL << bit);
-        } else {
-            GICR_IGROUP0(0) |= (1UL << bit);
-        }
+        GICR_IGROUP0(0) |= (1UL << bit);
     } else {
-        if (group == 0) {
-            // Secure group
-            GICD_IGROUPR(reg) &= ~(1UL << bit);
-        } else {
-            // Non-secure group
-            GICD_IGROUPR(reg) |= (1UL << bit);
-        }
+        GICD_IGROUPR(reg) |= (1UL << bit);
     }
 }
 
@@ -175,7 +173,7 @@ void gic_set_irq_level_trigger(int irq) {
     int bit = (irq % 16) * 2;
 
 
-    if (irq < 32) {
+    if (irq >= 16 && irq < 32) {
         GICR_ICFGR1(0) &= ~(3UL << bit);
         GICR_ICFGR1(0) |= (0UL << bit);
     } else {
@@ -189,7 +187,7 @@ void gic_set_irq_edge_trigger(int irq) {
     int bit = (irq % 16) * 2;
 
 
-    if (irq < 32) {
+    if (irq >= 16 && irq < 32) {
         GICR_ICFGR1(0) &= ~(3UL << bit);
         GICR_ICFGR1(0) |= (2UL << bit);
     } else {

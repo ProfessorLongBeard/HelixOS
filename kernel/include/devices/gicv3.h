@@ -18,7 +18,7 @@
 
 #define ICC_CTLR_CBPR_S         (1UL << 0UL)
 #define ICC_CTLR_CPBR_NS        (1UL << 1UL)
-#define ICC_CTLR_EOI_MODE       (1UL << 1UL)
+#define ICC_CTLR_EOI_MODE       (1UL << 2UL)
 #define ICC_CTLR_EOI_S          (1UL << 3UL)
 #define ICC_CTLR_EOI_NS         (1UL << 4UL)
 #define ICC_CTLR_RM             (1UL << 5UL)
@@ -56,11 +56,6 @@
 #define GICD_CTLR_ENABLE_E1NWF      (1UL << 7UL)
 #define GICD_CTLR_ENABLE_RWP        (1UL << 31UL)
 
-#define GICC_CTLR_ENABLE_GRP1       (1UL << 0UL)
-#define GICC_CTLR_FIQ_BYPASS_GRP1   (1UL << 5UL)
-#define GICC_CTLR_IRQ_BYPASS_GRP1   (1UL << 6UL)
-#define GICC_CTLR_EIO_MODE_NS       (1UL << 9UL)
-
 #define GICR_WAKER_CPU_SLEEP        (1UL << 1UL)
 #define GICR_WAKER_CHILDREN_SLEEP   (1UL << 2UL)
 
@@ -71,7 +66,9 @@
 #define GICR_CTLR_DPG0              (1UL << 24UL)
 #define GICR_CTLR_DPGINS            (1UL << 25UL)
 #define GICR_CTLR_DPGIS             (1UL << 26UL)
-#define GICR_CTLR_UPW               (1UL << 31UL)
+#define GICR_CTLR_UPW               (1UL << 31UL))
+
+
 
 
 
@@ -151,7 +148,7 @@ void gic_set_irq_priority(int irq, uint32_t priority);
 bool gic_irq_pending(int irq);
 int gic_ack_irq(void);
 void gic_clear_irq(int irq);
-void gic_set_irq_group(int irq, uint32_t group);
+void gic_set_irq_group_ns(int irq);
 void gic_set_irq_level_trigger(int irq);
 void gic_set_irq_edge_trigger(int irq);
 
