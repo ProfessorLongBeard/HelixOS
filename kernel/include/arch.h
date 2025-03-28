@@ -152,7 +152,7 @@ extern void __cntv_ctl_write(uint64_t cnt);
 
 extern uint64_t __cntv_tval_read(void);
 extern uint64_t __cntp_tval_read(void);
-extern void __cntv_tval_write(uint32_t cnt);
+extern void __cntv_tval_write(uint64_t cnt);
 extern void __cntp_cval_write(uint64_t cnt);
 
 extern uint64_t __cntvct_read(void);
@@ -160,6 +160,11 @@ extern uint64_t __cntv_cval_read(void);
 extern void __cntv_cval_write(uint32_t cnt);
 
 extern void __icc_sgi1r_write(uint64_t sgi);
+
+extern uint64_t __icc_rpr_read(void);
+extern void __icc_rpr_write(uint64_t rpr);
+
+extern int __icc_hppir_read(void);
 
 extern void __hcf(void);
 
