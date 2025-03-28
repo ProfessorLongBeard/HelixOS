@@ -46,26 +46,22 @@ void gic_init(void) {
     // Wait for children to wake up
     while(GICR_WAKER(0) & GICR_WAKER_CHILDREN_SLEEP);
 
+    uint32_t ctlr = __icc_ctlr_read();
+    ctlr |= ICC_CTLR_CPBR_NS | ICC_CTLR_EOI_NS;
+    __icc_ctlr_write(ctlr);
+
     uint64_t sre = __icc_sre_read();
     sre |= ICC_SRE_ENABLE;
     __icc_sre_write(sre);
 
     // Allow all interrupts
-    __icc_pmr_write(0xFF);
+    __icc_pmr_write(ICC_PMR_ALL);
 
     __icc_brp1_write(0b111);
-
-    uint64_t grp0 = __icc_igrpen0_read();
-    grp0 &= ~(ICC_IGRPEN0_ENABLE);
-    __icc_igrpen0_write(grp0);
 
     uint64_t grp1 = __icc_igrpen1_read();
     grp1 |= ICC_IGRPEN1_ENABLE;
     __icc_igrpen1_write(grp1);
-
-    uint32_t ctlr = __icc_ctlr_read();
-    ctlr |= ICC_CTLR_CBPR | ICC_CTLR_EOI_MODE;
-    __icc_ctlr_write(ctlr);
 
     __daif_clr();
     printf("GIC: Initialized!\n");
@@ -87,8 +83,10 @@ void gic_enable_irq(int irq) {
 
 
     if (irq < 32) {
-        GICR_ISENABLER0(0) |= (1UL << irq);
+        GICR_NSACR(0) |= (3UL << (bit * 2));
+        GICR_ISENABLER0(0) |= (1UL << bit);
     } else {
+        GICD_NSACR(reg) |= (3UL << (bit * 2));
         GICD_ISENABLER(reg) |= (1UL << bit);
     }
 }
@@ -98,7 +96,7 @@ void gic_disable_irq(int irq) {
     int bit = irq % 32;
 
     if (irq < 32) {
-        GICR_ICENABLER0(0) |= (1UL << irq);
+        GICR_ICENABLER0(0) |= (1UL << bit);
     } else {
         GICD_ICENABLER(reg) |= (1UL << bit);
     }
@@ -169,5 +167,33 @@ void gic_set_irq_group(int irq, uint32_t group) {
             // Non-secure group
             GICD_IGROUPR(reg) |= (1UL << bit);
         }
+    }
+}
+
+void gic_set_irq_level_trigger(int irq) {
+    int reg = irq / 16;
+    int bit = (irq % 16) * 2;
+
+
+    if (irq < 32) {
+        GICR_ICFGR1(0) &= ~(3UL << bit);
+        GICR_ICFGR1(0) |= (0UL << bit);
+    } else {
+        GICD_ICFGR(reg) &= ~(3UL << bit);
+        GICD_ICFGR(reg) |= (0UL << bit);
+    }
+}
+
+void gic_set_irq_edge_trigger(int irq) {
+    int reg = irq / 16;
+    int bit = (irq % 16) * 2;
+
+
+    if (irq < 32) {
+        GICR_ICFGR1(0) &= ~(3UL << bit);
+        GICR_ICFGR1(0) |= (2UL << bit);
+    } else {
+        GICD_ICFGR(reg) &= ~(3UL << bit);
+        GICD_ICFGR(reg) |= (2UL << bit);
     }
 }
