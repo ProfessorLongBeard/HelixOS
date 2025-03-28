@@ -63,6 +63,10 @@ void gic_init(void) {
     ctlr |= ICC_CTLR_CPBR_NS | ICC_CTLR_EOI_NS | ICC_CTLR_EOI_MODE;
     __icc_ctlr_write(ctlr);
 
+    for (int irq = 0; irq < MAX_IRQ_ID; irq++) {
+        gic_disable_irq(irq);
+    }
+
     __daif_clr();
     printf("GIC: Initialized!\n");
 }
