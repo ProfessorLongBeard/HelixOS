@@ -30,7 +30,6 @@
 
 
 
-
 void gic_init(void) {
     GICD_CTLR = GICD_CTLR_ENABLE_GRP0 | GICD_CTLR_ENABLE_GRP1_NS | GICD_CTLR_ENABLE_ARE_NS;
 
@@ -62,7 +61,8 @@ void gic_init(void) {
     
     // Set non-secure common binary point, end-of-interrupt, etc
     uint32_t ctlr = __icc_ctlr_read();
-    ctlr |= ICC_CTLR_CPBR_NS | ICC_CTLR_EOI_NS | ICC_CTLR_EOI_MODE;
+    ctlr &= ~(ICC_CTLR_CPBR_NS);        // ICC_BPR0_EL1 & ICC_BPR1_EL1 determines preemtion groups 0 & 1
+    ctlr &= ~(ICC_CTLR_EOI_MODE);       // ICC_EOIR1_EL1 drops priority & deactivates IRQ
     __icc_ctlr_write(ctlr);
 
     for (int irq = 0; irq < MAX_IRQ_ID; irq++) {
@@ -90,6 +90,27 @@ int gic_ack_irq(void) {
 
 void gic_clear_irq(int irq) {
     __icc_eoir1_write(irq);
+}
+
+bool gic_irq_is_active(int irq) {
+    int reg = irq / 32;
+    int bit = irq % 32;
+    uint32_t active = 0;
+
+
+    if (irq < 32) {
+        active = GICR_ISACTIVER0(0);
+    } else {
+        active = GICD_ISACTIVER(reg);
+    }
+
+    if (active & (1UL << bit)) {
+        // IRQ is active and pending
+        return true;
+    }
+
+    // IRQ is not active and pending
+    return false;
 }
 
 void gic_enable_irq(int irq) {

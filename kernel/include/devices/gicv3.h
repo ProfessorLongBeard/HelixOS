@@ -16,18 +16,12 @@
 
 #define ICC_PMR_ALL         0xFF
 
-#define ICC_CTLR_CBPR_S         (1UL << 0UL)
-#define ICC_CTLR_CPBR_NS        (1UL << 1UL)
-#define ICC_CTLR_EOI_MODE       (1UL << 2UL)
-#define ICC_CTLR_EOI_S          (1UL << 3UL)
-#define ICC_CTLR_EOI_NS         (1UL << 4UL)
-#define ICC_CTLR_RM             (1UL << 5UL)
+#define ICC_CTLR_CPBR_NS        (1UL << 0UL)
+#define ICC_CTLR_EOI_MODE       (1UL << 1UL)
 #define ICC_CTLR_PMHE           (1UL << 6UL)
-#define ICC_CTLR_ID_16BIT       (0UL << 11UL)
 #define ICC_CTLR_ID_24BIT       (1UL << 11UL)
 #define ICC_CTLR_SEIS           (1UL << 14UL)
 #define ICC_CTLR_A3V            (1UL << 15UL)
-#define ICC_CTLR_NDS            (1UL << 17UL)
 #define ICC_CTLR_RSS            (1UL << 18UL)
 #define ICC_CTLR_EXT_RANGE      (1UL << 19UL)
 
@@ -152,5 +146,6 @@ void gic_set_irq_group_ns(int irq);
 void gic_set_irq_level_trigger(int irq);
 void gic_set_irq_edge_trigger(int irq);
 int gic_ack_hppi_irq(void);
+bool gic_irq_is_active(int irq);
 
 #endif
