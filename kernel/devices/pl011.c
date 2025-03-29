@@ -52,8 +52,6 @@ void uart_irq_handler(void) {
     if (pl011->uart_mis & UART_TXIC) {
         pl011->uart_icr = UART_TXIC;
     }
-
-    gic_clear_irq(UART_IRQ);
 }
 
 void uart_putc(char ch) {
