@@ -41,28 +41,51 @@ void vmm_init(void) {
         kernel_page_table = pmm_alloc();
     }
 
+    uint64_t num_map_entries = mm_get_num_entries();
 
-    struct limine_memmap_entry *fb_entry = mm_get_entry_by_type(LIMINE_MEMMAP_FRAMEBUFFER);
-    assert(fb_entry != NULL);
+    for (uint64_t i = 0; i < num_map_entries; i++) {
+        struct limine_memmap_entry *e = mm_entry_for_each(i);
 
-    uint64_t fb_phys_base = fb_entry->base;
-    uint64_t fb_virt_base = hhdm + fb_entry->base;
-    uint64_t fb_virt_end = fb_virt_base + fb_entry->length;
+        if (e->type == LIMINE_MEMMAP_USABLE) {
 
-    vmm_map_range(kernel_page_table, fb_virt_base, fb_virt_end, fb_phys_base, PT_DEVICE_RW);
-    vmm_flush_cache_range(fb_virt_base, fb_virt_end);
+            // Map usable memory regions
+            uint64_t ram_phys_start = e->base;
+            uint64_t ram_virt_start = hhdm + e->base;
+            uint64_t ram_virt_end = ram_virt_start + e->length;
 
-    struct limine_memmap_entry *usable_mem = mm_get_entry_by_type(LIMINE_MEMMAP_USABLE);
-    assert(usable_mem != NULL);
+            vmm_map_range(kernel_page_table, ram_virt_start, ram_virt_end, ram_phys_start, PT_KERNEL_RW);
+            vmm_flush_cache_range(ram_virt_end, ram_virt_end);
+        }
 
-    uint64_t usable_mem_phys_base = usable_mem->base;
-    uint64_t usable_mem_virt_base = hhdm + usable_mem->base;
-    uint64_t usable_mem_virt_end = usable_mem_virt_base + usable_mem->length;
+        if (e->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) {
+            uint64_t reclaim_phys_start = e->base;
+            uint64_t reclaim_virt_start = hhdm + e->base;
+            uint64_t reclaim_virt_end = reclaim_virt_start + e->length;
 
-    vmm_map_range(kernel_page_table, usable_mem_virt_base, usable_mem_virt_end, usable_mem_phys_base, PT_KERNEL_RW);
-    vmm_flush_cache_range(usable_mem_virt_base, usable_mem_virt_end);
+            vmm_map_range(kernel_page_table, reclaim_virt_start, reclaim_virt_end, reclaim_phys_start, PT_KERNEL_RW);
+            vmm_flush_cache_range(reclaim_virt_start, reclaim_virt_end);
+        }
 
-    vmm_unmap(kernel_page_table, usable_mem_virt_base + PAGE_SIZE, usable_mem_phys_base + PAGE_SIZE);
+        if (e->type == LIMINE_MEMMAP_FRAMEBUFFER) {
+            uint64_t fb_phys_base = e->base;
+            uint64_t fb_virt_base = hhdm + e->base;
+            uint64_t fb_virt_end = fb_virt_base + e->length;
+        
+            vmm_map_range(kernel_page_table, fb_virt_base, fb_virt_end, fb_phys_base, PT_DEVICE_RW);
+            vmm_flush_cache_range(fb_virt_base, fb_virt_end);        
+        }
+    }
+
+    // Map GIC, UART, RTC, etc
+    uint64_t mmio_phys_start = 0x08000000;
+    uint64_t mmio_phys_end = 0x09030000;
+    uint64_t mmio_size = mmio_phys_end - mmio_phys_start;
+
+    uint64_t mmio_virt_start = hhdm + mmio_phys_start;
+    uint64_t mmio_virt_end = mmio_virt_start + mmio_size;
+
+    vmm_map_range(kernel_page_table, mmio_virt_start, mmio_virt_end, mmio_phys_start, PT_DEVICE_RW);
+    vmm_flush_cache_range(mmio_virt_start, mmio_virt_end);
 
     uint64_t reqs_virt_start = (uint64_t)__slimine_requests;
     uint64_t reqs_virt_end = (uint64_t)__elimine_requests;
@@ -155,7 +178,11 @@ void vmm_map(uint64_t *table, uint64_t virt, uint64_t phys, uint64_t flags) {
     uint64_t *l0 = (uint64_t *)table;
 
 
+    if(!((uint64_t)l0[VMM_RECURSIVE_IDX] & PT_VALID)) {
+        uint64_t l0_phys = ((uint64_t)l0 - hhdm);
 
+        l0[VMM_RECURSIVE_IDX] = (uint64_t)l0_phys | PT_TABLE | PT_VALID;
+    }
 
     if (!(l0[l0_idx] & PT_VALID)) {
         uint64_t *l1 = (uint64_t *)pmm_alloc();
@@ -167,7 +194,7 @@ void vmm_map(uint64_t *table, uint64_t virt, uint64_t phys, uint64_t flags) {
     }
 
     uint64_t *l1 = (uint64_t *)((l0[l0_idx] & ~0xFFF) + hhdm);
-
+    
     if (!(l1[l1_idx] & PT_VALID)) {
         uint64_t *l2 = (uint64_t *)pmm_alloc();
         assert(l2 != NULL);
@@ -178,7 +205,7 @@ void vmm_map(uint64_t *table, uint64_t virt, uint64_t phys, uint64_t flags) {
     }
 
     uint64_t *l2 = (uint64_t *)((l1[l1_idx] & ~0xFFF) + hhdm);
-
+    
     if (!(l2[l2_idx] & PT_VALID)) {
         uint64_t *l3 = (uint64_t *)pmm_alloc();
         assert(l3 != NULL);
