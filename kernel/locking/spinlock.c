@@ -10,7 +10,7 @@
 void spinlock_init(spinlock_t *s) {
     assert(s != NULL);
 
-    atomic_store(&s->lock, false);
+    atomic_flag_clear(&s->lock);
 }
 
 void spinlock_acquire(spinlock_t *s) {
@@ -22,5 +22,5 @@ void spinlock_acquire(spinlock_t *s) {
 void spinlock_release(spinlock_t *s) {
     assert(s != NULL);
 
-    atomic_store(&s->lock, false);
+    atomic_flag_clear(&s->lock);
 }

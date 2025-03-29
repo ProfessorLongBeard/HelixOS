@@ -9,7 +9,7 @@
 
 
 typedef struct {
-    atomic_bool *lock;
+    atomic_flag lock;
 } spinlock_t;
 
 
