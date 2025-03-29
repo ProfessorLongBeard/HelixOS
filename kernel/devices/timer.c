@@ -9,6 +9,8 @@
 
 
 static uint64_t timer_freq_hz = 0;
+static uint64_t saved_ms = 0;
+
 
 
 
@@ -30,8 +32,13 @@ void timer_set(uint64_t ms) {
     uint64_t curr_time = timer_virt_get_time();
     uint64_t deadline = curr_time + ticks;
 
+    // Save deadline for timer reload (for now)
+    saved_ms = deadline;
+
+    // Set timer
     __cntv_cval_write(deadline);
 
+    // Enable timer
     timer_enable();
 }
 
@@ -39,6 +46,12 @@ void timer_disable(void) {
     uint64_t cntv = __cntv_ctl_read();
     cntv &= ~(CNTV_CTL_ENABLE);
     cntv |= CNTV_CTL_IMASK;
+
+    if (cntv & CNTV_CTL_ISTATUS) {
+        // Clear ISTATUS
+        cntv &= ~(CNTV_CTL_ISTATUS);
+    }
+
     __cntv_ctl_write(cntv);
 }
 
@@ -77,8 +90,6 @@ uint64_t timer_phys_get_cval(void) {
 void timer_irq_handler(void) {
     printf("Timer IRQ handler called!\n");
 
-    // TODO: Reset timer
+    // TODO: Restart timer
     timer_disable();
-
-    gic_clear_irq(VTIMER_IRQ);
 }
