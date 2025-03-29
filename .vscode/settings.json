@@ -21,5 +21,6 @@
         "--parse-forwarding-functions=0",
         "--pch-storage=disk",
         "--use-dirty-headers=0"
-    ]
+    ],
+    "git.ignoreLimitWarning": true
 }

@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(gdb-multiarch) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "miDebuggerPath": "/usr/bin/gdb-multiarch", // Path to GDB
+            "targetArchitecture": "arm", // Architecture of your target
+            "program": "${workspaceRoot}/build/kernel/kernel.elf", // Path to ELF
+            "setupCommands": [
+                { "text": "set remotetimeout 5" }, // Set remote timeout
+                { "text": "target remote localhost:1234" }, // Connect to GDB server
+                { "text": "monitor reset halt" }, // Reset and halt target
+            ],
+            "externalConsole": false, // Set to true if you need an external console
+            "cwd": "${workspaceFolder}" // Current working directory for the project
+        }
+    ]
+}
