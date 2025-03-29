@@ -164,7 +164,7 @@ __icc_iar1_read:
 
 .global __icc_hppir_read
 __icc_hppir_read:
-    mrs x0, icc_hppir1_EL1
+    mrs x0, icc_HPPIR1_EL1
     ret
 
 .global __icc_eoir1_write
