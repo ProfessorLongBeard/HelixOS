@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(gdb-multiarch) Launch",
+            "name": "HelixOS debug",
             "type": "cppdbg",
             "request": "launch",
             "miDebuggerPath": "/usr/bin/gdb-multiarch", // Path to GDB
