@@ -45,7 +45,7 @@ void pmm_init(void) {
     uint64_t hhdm = mm_get_hhdm_offset();
     uint64_t map_entries = mm_get_num_entries();
 
-
+    spinlock_init(&bmp.s);
 
     for (uint64_t i = 0; i < map_entries; i++) {
         struct limine_memmap_entry *e = mm_entry_for_each(i);
@@ -100,6 +100,8 @@ void *pmm_alloc(void) {
     uint64_t idx = pmm_find_first_free();
     uint64_t bmp_end = bmp.bitmap_base + bmp.bitmap_size;
 
+    spinlock_acquire(&bmp.s);
+
     assert(idx < bmp.total_pages || idx != (uint64_t)-1);
 
     // Ensure next allocated frame is aligned on PAGE_SIZE boundaries
@@ -110,6 +112,8 @@ void *pmm_alloc(void) {
 
     pmm_set_bit(idx);
     bmp.used_pages++;
+
+    spinlock_release(&bmp.s);
 
     return ptr;
 }
@@ -127,11 +131,15 @@ void pmm_free(void *ptr) {
     uint64_t aligned_ptr = (uint64_t)ptr;
     uint64_t orig_ptr = 0;
 
+    spinlock_acquire(&bmp.s);
+
     orig_ptr = aligned_ptr - (aligned_ptr % PAGE_SIZE);
 
     uint64_t idx = ((uint64_t)orig_ptr - bmp.bitmap_base) / PAGE_SIZE;
-    assert(idx < bmp.total_pages);
-    
+    assert(idx <= bmp.total_pages);
+
     pmm_clear_bit(idx);
     bmp.used_pages--;
+
+    spinlock_release(&bmp.s);
 }

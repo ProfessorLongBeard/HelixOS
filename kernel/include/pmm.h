@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <limine.h>
+#include <spinlock.h>
 
 
 
@@ -12,6 +13,7 @@
 
 
 typedef struct {
+    spinlock_t  s;
     uint64_t    usable_start;
     uint64_t    usable_end;
     size_t      usable_size;
