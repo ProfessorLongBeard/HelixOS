@@ -281,7 +281,6 @@ size_t slab_find_ptr_obj_size(void *ptr) {
             if ((uintptr_t)ptr >= data_start && (uintptr_t)ptr < data_end) {
                 for (uintptr_t obj = data_start; obj < data_end; obj += slab->object_size) {
                     if ((uintptr_t)ptr == obj) {
-                        printf("Found slab object: 0x%lx - 0x%lx size = %llu\n", (uintptr_t)obj, (uintptr_t)obj + slab->object_size, slab->object_size);
                         return slab->object_size;
                     }
                 }
@@ -312,8 +311,6 @@ void slab_free(void *obj, size_t length) {
     assert(cache->slab_list != NULL);
     slab = cache->slab_list;
 
-    printf("Freeing: 0x%lx, size = %llu\n", (uintptr_t)obj, length);
-
     size_t slab_size = slab->num_objects * slab->object_size;
     uintptr_t data_start = (uintptr_t)(slab + 1);
     uintptr_t data_end = data_start + slab_size;
@@ -333,8 +330,6 @@ void slab_free(void *obj, size_t length) {
         return;
     }
 
-    printf("Found object: 0x%lx at index %llu\n", (uintptr_t)obj_start, obj_idx);
-
     if (slab->data != NULL) {
         *(void **)obj = slab->data;
         slab->free_objects++;
@@ -344,7 +339,6 @@ void slab_free(void *obj, size_t length) {
     slab->free_objects++;
 
     if (slab->free_objects == slab->num_objects) {
-        printf("Releaseing slab to PMM\n");
         pmm_free(slab);
     }
 
