@@ -80,7 +80,7 @@ void slab_init(void) {
     size_t order_count = SLAB_MIN_SIZE;
     spinlock_init(&s);
 
-    
+
 
     for (size_t i = 0; i < SLAB_COUNT && order_count <= SLAB_MAX_SIZE; i++) {
         slab_cache_t *cache = slab_cache_for_each(i);
@@ -91,13 +91,13 @@ void slab_init(void) {
         slab->num_objects = PAGE_SIZE / SLAB_MIN_SIZE;
         slab->free_objects = slab->num_objects;
         slab->object_size = SLAB_MIN_SIZE;    
-        ptr = (uint8_t *)(slab + 1);
+        ptr = (void *)(slab + 1);
 
-
-        *(uint8_t **)ptr = slab->data;
-        slab->data = ptr;
-
-        ptr += slab->object_size;
+        for (size_t i = 0; i < slab->num_objects - 1; i++) {
+            *(void **)ptr = slab->data;
+            slab->data = ptr;
+            ptr = (void *)((uint8_t *)ptr + slab->object_size);
+        }
 
         slab->next = cache->slab_list;
         cache->num_objects = slab->num_objects;
@@ -117,27 +117,42 @@ static slab_t *slab_create_new(size_t length) {
 
     assert(new_slab != NULL);
 
-    new_slab->num_objects = PAGE_SIZE / length;
+    new_slab->num_objects = length / PAGE_SIZE;
     new_slab->free_objects = new_slab->num_objects;
     new_slab->object_size = length;
-    new_slab->data = (void *)((uint8_t *)new_slab + sizeof(slab_t));
     new_slab->next = NULL;
 
-    ptr = (void *)new_slab->data;
+    ptr = (void *)(new_slab + 1);
+    assert(ptr != NULL);
 
     for (size_t i = 0; i < new_slab->num_objects - 1; i++) {
-        void *next = (void *)((uint8_t *)ptr + new_slab->object_size);
-
-        // Split objects in list to object_size
-        *(void **)ptr = next;
-
-        // Move to next object
-        ptr = *(void **)ptr;
+        *(void **)ptr = new_slab->data;
+        new_slab = ptr;
+        ptr = (void *)((uint8_t *)ptr + new_slab->object_size);
     }
 
-    *(void **)ptr = NULL;
-
     return new_slab;
+}
+
+static void *slab_get_obj(slab_t *slab, size_t length) {
+    void *ptr = NULL;
+    slab_t *curr = slab;
+
+    assert(curr != NULL);
+    assert(length > 0 && length <= PAGE_SIZE);
+
+    if (curr->free_objects == 0) {
+        printf("No available slab objects in region: 0x%lx!\n", (uintptr_t)slab);
+        return NULL;
+    }
+
+    ptr = (void *)slab->data;
+    assert(ptr != NULL);
+
+    slab->data = *(void **)ptr;
+
+    slab->free_objects--;
+    return ptr;
 }
 
 static slab_t *slab_find_first_free(size_t length) {
@@ -210,37 +225,12 @@ static void slab_link_to_cache(slab_t *new_slab) {
     cache->num_objects++;
 }
 
-static void *slab_alloc_from_list(slab_t *slab, size_t length) {
-    void *ptr = NULL;
-    slab_t *curr = slab;
-    slab_cache_t *cache = NULL;
-
-    assert(curr != NULL);
-    assert(length > 0);
-
-    
-    // Locate slab in cache with free space & is the correct size
-    while(curr->object_size != length) {
-        curr = curr->next;
-    }
-
-    assert(curr->data != NULL);
-
-    ptr = (void *)curr->data;
-    curr->data = *(void **)ptr;
-    curr->free_objects--;
-
-    return ptr;
-}
-
 void *slab_alloc(size_t length) {
     void *ptr = NULL;
     slab_t *slab = NULL;
-    slab_cache_t *cache = NULL;
 
 
-
-    assert(length <= PAGE_SIZE);
+    assert(length <= PAGE_SIZE && length > 0);
     spinlock_acquire(&s);
 
     slab = slab_find_first_free(length);
@@ -250,9 +240,14 @@ void *slab_alloc(size_t length) {
         assert(slab != NULL);
 
         slab_link_to_cache(slab);
+
+        ptr = slab_get_obj(slab, length);
+        assert(ptr != NULL);
+
+        return ptr;
     }
 
-    ptr = slab_alloc_from_list(slab, length);
+    ptr = slab_get_obj(slab, length);
     assert(ptr != NULL);
 
     spinlock_release(&s);
@@ -299,7 +294,7 @@ void slab_free(void *obj, size_t length) {
     size_t order = 0;
 
     assert(obj != NULL);
-    assert(length <= PAGE_SIZE);
+    assert(length <= PAGE_SIZE || length > 0);
 
     spinlock_acquire(&s);
 
@@ -320,8 +315,6 @@ void slab_free(void *obj, size_t length) {
 
     size_t obj_idx = (obj_start - data_start) / slab->object_size;
     uintptr_t base = data_start + obj_idx * slab->object_size;
-
-    printf("Oject index: %llu, base = 0x%lx\n", obj_idx, base);
 
     if (obj_start != base) {
         printf("Failed to locate object: 0x%lx in slab!\n", (uintptr_t)obj_start);
