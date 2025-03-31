@@ -127,7 +127,7 @@ static slab_t *slab_create_new(size_t length) {
 
     for (size_t i = 0; i < new_slab->num_objects - 1; i++) {
         *(void **)ptr = new_slab->data;
-        new_slab = ptr;
+        new_slab->data = ptr;
         ptr = (void *)((uint8_t *)ptr + new_slab->object_size);
     }
 
@@ -145,6 +145,8 @@ static void *slab_get_obj(slab_t *slab, size_t length) {
         printf("No available slab objects in region: 0x%lx!\n", (uintptr_t)slab);
         return NULL;
     }
+
+    // TODO: bounds checking with length
 
     ptr = (void *)slab->data;
     assert(ptr != NULL);
