@@ -28,5 +28,7 @@
 void memset(void *dst, char ch, size_t len);
 void memcpy(void *dst, void *src, size_t len);
 size_t strlen(const char *s);
+int strcmp(const char *s1, const char *s2);
+char *strcat(char *dst, const char *src);
 
 #endif
