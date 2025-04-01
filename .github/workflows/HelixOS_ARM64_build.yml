@@ -18,8 +18,7 @@ jobs:
 
     - name: Install deps
       run:
-        sudo apt-get update \
-        sudo apt-get install gcc-aarch64-linux-gnu cmake mtools gdisk qemu-system-aarch64 direnv
+        sudo apt-get update && sudo apt-get install gcc-aarch64-linux-gnu cmake mtools gdisk qemu-system-aarch64 direnv
 
     - name: Configure HelixOS
       run: 
