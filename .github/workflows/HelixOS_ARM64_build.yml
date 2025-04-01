@@ -25,6 +25,8 @@ jobs:
         # Configure direnv (needed for the HelixOS system)
         echo "eval \"$(direnv hook bash)\"" >> ~/.bashrc && source ~/.bashrc
 
+        cd ${{github.workspace}} && git submodule init && git submodule update
+
         cmake -S ${{github.workspace}} -B ${{github.workspace}}/build
 
     - name: Build HelixOS
