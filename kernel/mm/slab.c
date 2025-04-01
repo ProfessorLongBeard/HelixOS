@@ -117,7 +117,7 @@ static slab_t *slab_create_new(size_t length) {
 
     assert(new_slab != NULL);
 
-    new_slab->num_objects = length / PAGE_SIZE;
+    new_slab->num_objects = PAGE_SIZE / length;
     new_slab->free_objects = new_slab->num_objects;
     new_slab->object_size = length;
     new_slab->next = NULL;
