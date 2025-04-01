@@ -1,0 +1,25 @@
+name: HelixOS CMake builder
+
+on:
+  push:
+    branches: [ "v0.0.1-dev" ]
+  pull_request:
+    branches: [ "v0.0.1-dev" ]
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Debug
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure HelixOS
+      run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build
+
+    - name: Build HelixOS
+      # Build your program with the given configuration
+      run: cmake --build ${{github.workspace}}/build
