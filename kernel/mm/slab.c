@@ -78,12 +78,12 @@ static size_t slab_get_order(size_t length) {
 void slab_init(void) {
     void *ptr = NULL;
     size_t order_count = SLAB_MIN_SIZE;
-    spinlock_init(&s);
-
 
 
     for (size_t i = 0; i < SLAB_COUNT && order_count <= SLAB_MAX_SIZE; i++) {
         slab_cache_t *cache = slab_cache_for_each(i);
+
+        spinlock_init(&s);
 
         slab_t *slab = pmm_alloc();
         assert(slab != NULL);
@@ -114,8 +114,14 @@ static slab_t *slab_create_new(size_t length) {
     void *ptr = NULL;
     slab_t *new_slab = pmm_alloc();
     size_t order = SLAB_MIN_SIZE;
+    slab_cache_t *cache = NULL;
+
+
 
     assert(new_slab != NULL);
+
+    cache = slab_cache_for_each(order);
+    assert(cache != NULL);
 
     new_slab->num_objects = PAGE_SIZE / length;
     new_slab->free_objects = new_slab->num_objects;
@@ -146,7 +152,7 @@ static void *slab_get_obj(slab_t *slab, size_t length) {
         return NULL;
     }
 
-    // TODO: bounds checking with length
+    assert(length == curr->object_size);
 
     ptr = (void *)slab->data;
     assert(ptr != NULL);
@@ -229,10 +235,12 @@ static void slab_link_to_cache(slab_t *new_slab) {
 
 void *slab_alloc(size_t length) {
     void *ptr = NULL;
+    size_t order = 0;
     slab_t *slab = NULL;
 
 
     assert(length <= PAGE_SIZE && length > 0);
+
     spinlock_acquire(&s);
 
     slab = slab_find_first_free(length);
@@ -246,6 +254,7 @@ void *slab_alloc(size_t length) {
         ptr = slab_get_obj(slab, length);
         assert(ptr != NULL);
 
+        spinlock_release(&s);
         return ptr;
     }
 
