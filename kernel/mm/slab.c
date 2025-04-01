@@ -79,11 +79,10 @@ void slab_init(void) {
     void *ptr = NULL;
     size_t order_count = SLAB_MIN_SIZE;
 
+    spinlock_init(&s);
 
     for (size_t i = 0; i < SLAB_COUNT && order_count <= SLAB_MAX_SIZE; i++) {
         slab_cache_t *cache = slab_cache_for_each(i);
-
-        spinlock_init(&s);
 
         slab_t *slab = pmm_alloc();
         assert(slab != NULL);
