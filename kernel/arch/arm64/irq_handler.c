@@ -17,7 +17,6 @@ void irq_register(int irq, void (*irq_handler)(void)) {
         return;
     }
 
-    printf("Registering IRQ handler %d\n", irq);
     irq_handler_table[irq] = irq_handler;
 }
 
@@ -29,7 +28,7 @@ void irq_handler(void) {
             // Handle IRQ
             irq_handler_table[iar_irq_id]();
         } else {
-            printf("IRQ ID %d has no handler registered!\n", iar_irq_id);
+            printf("IRQ ID: %d handler unregistered!\n", iar_irq_id);
             return;
         }
     } else {
