@@ -43,8 +43,6 @@ void uart_init(void) {
 }
 
 void uart_irq_handler(void) {
-    printf("UART IRQ handler called!\n");
-    
     if (pl011->uart_mis & UART_RXIC) {
         pl011->uart_icr = UART_RXIC;
     }

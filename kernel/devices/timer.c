@@ -88,8 +88,6 @@ uint64_t timer_phys_get_cval(void) {
 }
 
 void timer_irq_handler(void) {
-    printf("Timer IRQ handler called!\n");
-
     // TODO: Restart timer
     timer_disable();
 }
