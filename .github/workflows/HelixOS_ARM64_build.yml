@@ -15,20 +15,24 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: true
 
     - name: Install deps
-      run:
-        sudo apt-get update && sudo apt-get install gcc-aarch64-linux-gnu cmake mtools gdisk qemu-system-aarch64 direnv
+      run: |
+        sudo apt-get update 
+        sudo apt-get install gcc-aarch64-linux-gnu cmake mtools gdisk qemu-system-aarch64 direnv
 
     - name: Configure HelixOS
-      run: 
-        # Configure direnv (needed for the HelixOS system)
-        echo "eval \"$(direnv hook bash)\"" >> ~/.bashrc && source ~/.bashrc
-
-        cd ${{github.workspace}} && git submodule init && git submodule update
+      run: |
+        eval "$(direnv hook bash)"
+        direnv allow ${{github.workspace}}
 
         cmake -S ${{github.workspace}} -B ${{github.workspace}}/build
 
     - name: Build HelixOS
-      run: 
+      run: |
+        eval "$(direnv hook bash)"
+        direnv allow ${{github.workspace}}
+        
         cmake --build ${{github.workspace}}/build
