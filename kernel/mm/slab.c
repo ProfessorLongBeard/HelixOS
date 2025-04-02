@@ -77,6 +77,7 @@ static size_t slab_get_order(size_t length) {
 
 void slab_init(void) {
     void *ptr = NULL;
+    size_t length = SLAB_MIN_SIZE;
     size_t order_count = SLAB_MIN_SIZE;
 
     spinlock_init(&s);
@@ -87,7 +88,7 @@ void slab_init(void) {
         slab_t *slab = pmm_alloc();
         assert(slab != NULL);
 
-        slab->num_objects = PAGE_SIZE / SLAB_MIN_SIZE;
+        slab->num_objects = PAGE_SIZE / length;
         slab->free_objects = slab->num_objects;
         slab->object_size = SLAB_MIN_SIZE;    
         ptr = (void *)(slab + 1);
@@ -101,6 +102,9 @@ void slab_init(void) {
         slab->next = cache->slab_list;
         cache->num_objects = slab->num_objects;
         cache->slab_list = slab;
+
+        // Increment to next power of two
+        length += SLAB_MIN_SIZE;
 
         // Increase slab order count
         order_count <<= 1;
@@ -251,8 +255,7 @@ void *slab_alloc(size_t length) {
         slab_link_to_cache(slab);
 
         ptr = slab_get_obj(slab, length);
-        assert(ptr != NULL);
-
+        
         spinlock_release(&s);
         return ptr;
     }
