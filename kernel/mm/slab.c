@@ -90,7 +90,7 @@ void slab_init(void) {
 
         slab->num_objects = PAGE_SIZE / length;
         slab->free_objects = slab->num_objects;
-        slab->object_size = SLAB_MIN_SIZE;    
+        slab->object_size = length;    
         ptr = (void *)(slab + 1);
 
         for (size_t i = 0; i < slab->num_objects - 1; i++) {
