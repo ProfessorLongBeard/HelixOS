@@ -18,8 +18,13 @@ jobs:
       with:
         submodules: true
 
-    - name: Install deps
+    - name: Init external
       run: |
+        git submodule sync --recursive
+        git submodule update --init --recursive --depth=1
+
+    - name: Install deps
+      run: |  
         sudo apt-get update 
         sudo apt-get install gcc-aarch64-linux-gnu cmake mtools gdisk qemu-system-aarch64 direnv
 
