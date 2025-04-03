@@ -5,7 +5,7 @@
 Dependencies:
 ```
 sudo apt-get update
-sudo apt-get install gcc-aarch64-linux-gnu cmake mtools gdisk qemu-system-aarch64 direnv
+sudo apt-get install gcc-aarch64-linux-gnu cmake mtools gdisk qemu-system-aarch64 direnv lld llvm
 ```
 
 Setup direnv:
