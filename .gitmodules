@@ -1,0 +1,13 @@
+[submodule "external/flanterm"]
+	path = external/flanterm
+	url = https://codeberg.org/TheProfessorLongBeard6/flanterm.git
+[submodule "external/freestnd-c-hdrs"]
+	path = external/freestnd-c-hdrs
+	url = https://codeberg.org/TheProfessorLongBeard6/freestnd-c-hdrs.git
+[submodule "external/printf"]
+	path = external/printf
+	url = https://github.com/ProfessorLongBeard/printf.git
+[submodule "external/limine"]
+	path = external/limine
+	url = https://github.com/limine-bootloader/limine.git
+	branch = v9.x-binary
