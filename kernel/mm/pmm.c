@@ -77,6 +77,10 @@ void pmm_init(struct limine_memmap_entry **mm, uint64_t mm_count) {
         pmm_set_bit(i);
         bmp.used_pages++;
     }
+
+    printf("PMM: Available memory region: 0x%lx - 0x%lx length: %lluGB\n", bmp.phys_start, bmp.phys_end, bmp.phys_size / 1024 / 1024 / 1024);    
+    printf("PMM: Bitmap: 0x%lx - 0x%lx length: %lluKB\n", VIRT_TO_PHYS(bmp.bitmap_base), VIRT_TO_PHYS(bmp.bitmap_end), bmp.bitmap_size / 1024);
+    printf("PMM: Total pages: %llu used pages: %llu reserved pages: %llu\n", bmp.total_pages, bmp.used_pages, bmp.reserved_pages);
 }
 
 uint64_t pmm_get_bitmap_base(void) {
