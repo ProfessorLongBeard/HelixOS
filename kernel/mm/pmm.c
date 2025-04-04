@@ -16,9 +16,6 @@ static bitmap_t bmp;
 
 
 
-
-
-
 static bool pmm_is_bit_set(uint64_t idx) {
     return (bmp.bitmap[idx / BITS_PER_BYTE] & (1 << (idx % BITS_PER_BYTE))) != 0;
 }
@@ -41,49 +38,45 @@ static uint64_t pmm_find_first_free(void) {
     return -1;
 }
 
-void pmm_init(void) {
-    uint64_t hhdm = mm_get_hhdm_offset();
-    uint64_t map_entries = mm_get_num_entries();
+void pmm_init(struct limine_memmap_entry **mm, uint64_t mm_count) {
+    struct limine_memmap_entry *e = NULL;
 
     spinlock_init(&bmp.s);
 
-    for (uint64_t i = 0; i < map_entries; i++) {
-        struct limine_memmap_entry *e = mm_entry_for_each(i);
+
+    for (uint64_t i = 0; i < mm_count; i++) {
+        e = mm[i];
 
         if (e->type != LIMINE_MEMMAP_USABLE) {
+            // We only want usable physical memory
             continue;
         }
 
-        if (bmp.usable_size == 0) {
-            // Get largest usable regions (TODO: check and verify this)
-            bmp.usable_start = e->base;
-            bmp.usable_size = e->length;
+        if (bmp.phys_start == 0) {
+            bmp.phys_start = e->base;
         }
+
+        bmp.phys_size += e->length;
     }
 
-    bmp.usable_end = bmp.usable_start + bmp.usable_size;
-    bmp.total_pages = bmp.usable_size / PAGE_SIZE;
-    bmp.bitmap_size = (bmp.total_pages + BITS_PER_BYTE - 1) / BITS_PER_BYTE;
+    bmp.phys_end = bmp.phys_start + bmp.phys_size;
 
-    bmp.bitmap = (uint8_t *)(hhdm + bmp.usable_start);
+    bmp.total_pages = bmp.phys_size / PAGE_SIZE;
+
+    bmp.bitmap_size = (bmp.total_pages + BITS_PER_BYTE - 1) / BITS_PER_BYTE;    
+    bmp.bitmap = (uint8_t *)PHYS_TO_VIRT((uint64_t)bmp.phys_start);
     bmp.bitmap_base = (uint64_t)bmp.bitmap;
+    bmp.bitmap_end  = bmp.bitmap_base + bmp.bitmap_size;
 
-    // Intiialize bitmap
-    memset((uint8_t *)bmp.bitmap, 0, PAGE_SIZE);
-
-    // Bitmap itself should be marked as in use
     bmp.reserved_pages = SIZE_TO_PAGES(bmp.bitmap_size, PAGE_SIZE);
 
+    // Initialize bitmap
+    memset(bmp.bitmap, 0, bmp.bitmap_size);
+
     for (size_t i = 0; i < bmp.reserved_pages; i++) {
-        // Mark bitmap pages as in use
         pmm_set_bit(i);
         bmp.used_pages++;
     }
-
-    printf("PMM: Bitmap information:\n");
-    printf("PMM: Usable region: [0x%lx - 0x%lx] region size: %uMB\n", bmp.usable_start, bmp.usable_end, bmp.usable_size / (1024 * 1024));
-    printf("PMM: Bitmap region: [0x%lx - 0x%lx] bitmap size: %uKB\n", (uint64_t)bmp.bitmap - hhdm, (uint64_t)bmp.bitmap + bmp.bitmap_size - hhdm, bmp.bitmap_size / 1024);
-    printf("PMM: Total pages: %llu, used pages: %llu, reserved pages: %llu\n", bmp.total_pages, bmp.used_pages, bmp.reserved_pages);
 }
 
 uint64_t pmm_get_bitmap_base(void) {
@@ -96,7 +89,6 @@ size_t pmm_get_bitmap_size(void) {
 
 void *pmm_alloc(void) {
     void *ptr = NULL;
-    uint64_t hhdm = mm_get_hhdm_offset();
     uint64_t idx = pmm_find_first_free();
     uint64_t bmp_end = bmp.bitmap_base + bmp.bitmap_size;
 
@@ -118,16 +110,7 @@ void *pmm_alloc(void) {
     return ptr;
 }
 
-void *pmm_allocz(void) {
-    void *ptr = pmm_alloc();
-    assert(ptr != NULL);
-
-    memset(ptr, 0, PAGE_SIZE);
-    return ptr;
-}
-
 void pmm_free(void *ptr) {
-    uint64_t hhdm = mm_get_hhdm_offset();
     uint64_t aligned_ptr = (uint64_t)ptr;
     uint64_t orig_ptr = 0;
 

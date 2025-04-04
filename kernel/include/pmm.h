@@ -14,23 +14,25 @@
 
 typedef struct {
     spinlock_t  s;
-    uint64_t    usable_start;
-    uint64_t    usable_end;
-    size_t      usable_size;
+
+    uint64_t    phys_start;
+    uint64_t    phys_end;
+    size_t      phys_size;
+
     uint64_t    bitmap_base;
+    uint64_t    bitmap_end;
     size_t      bitmap_size;
+
     size_t      total_pages;
     size_t      used_pages;
     size_t      reserved_pages;
+
     uint8_t     *bitmap;
 } bitmap_t;
 
 
-void pmm_init(void);
+void pmm_init(struct limine_memmap_entry **mm, uint64_t mm_count);
 void *pmm_alloc(void);
 void pmm_free(void *ptr);
-void *pmm_allocz(void);
-uint64_t pmm_get_bitmap_base(void);
-size_t pmm_get_bitmap_size(void);
 
 #endif
