@@ -6,4 +6,7 @@ target_sources(${KERNEL_TARGET} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/strcat.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/strcpy.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/strncpy.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/strchr.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/strtok.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/strdup.c"
 )

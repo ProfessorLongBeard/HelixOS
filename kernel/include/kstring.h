@@ -32,5 +32,8 @@ int strcmp(const char *s1, const char *s2);
 char *strcat(char *dst, const char *src);
 char *strcpy(char *dst, const char *src);
 char *strncpy(char *dst, const char *src, size_t length);
+char *strchr(const char *s, char c);
+char *strtok(char *str, const char *delim);
+char *strdup(const char *s);
 
 #endif
