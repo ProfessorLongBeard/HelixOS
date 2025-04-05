@@ -10,6 +10,7 @@
 
 static uint64_t timer_freq_hz = 0;
 static uint64_t saved_ms = 0;
+static uint64_t h = 0, m = 0, s = 0;
 
 
 
@@ -62,12 +63,6 @@ void timer_enable(void) {
     __cntv_ctl_write(cntv);
 }
 
-uint64_t timer_phys_get_time(void) {
-    uint64_t time = __cntpct_read();
-
-    return time;
-}
-
 uint64_t timer_virt_get_time(void) {
     uint64_t time = __cntvct_read();
 
@@ -80,14 +75,11 @@ uint64_t timer_get_freq(void) {
     return timer_freq;
 }
 
-uint64_t timer_phys_get_cval(void) {
-    uint64_t cval = 0;
-
-    __asm__ volatile("mrs %0, cntp_cval_el0\n\t" : : "r"(cval));
-    return cval;
-}
-
 void timer_irq_handler(void) {
-    // TODO: Restart timer
     timer_disable();
+
+    // TODO: Improve timer handling
+    __cntv_cval_write(saved_ms);
+
+    timer_enable();
 }
