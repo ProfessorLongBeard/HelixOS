@@ -6,15 +6,7 @@
 
 
 
-__attribute__((used, section(".limine_requests")))
-static volatile struct limine_framebuffer_request framebuffer_request = {
-    .id = LIMINE_FRAMEBUFFER_REQUEST,
-    .revision = 0
-};
-
-
 struct flanterm_context *ft_ctx = NULL;
-
 struct limine_framebuffer *fb = NULL;
 
 
@@ -23,12 +15,8 @@ struct limine_framebuffer *fb = NULL;
 
 
 
-void fb_init(void) {
-    if (framebuffer_request.response->framebuffer_count < 1) {
-        return;
-    }
-
-    fb = framebuffer_request.response->framebuffers[0];
+void fb_init(struct limine_framebuffer *f) {
+    fb = f;
 
     ft_ctx = flanterm_fb_init(NULL, NULL,
         fb->address, fb->width, fb->height, fb->pitch,
@@ -42,6 +30,4 @@ void fb_init(void) {
         NULL, 0, 0, 1,
         0, 0,
         0);
-
-    printf("Framebuffer initialized: Base: 0x%lx resolution: %ux%u\n", fb->address, fb->width, fb->height);
 }
