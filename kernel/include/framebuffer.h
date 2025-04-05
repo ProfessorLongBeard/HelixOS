@@ -12,7 +12,7 @@ extern struct limine_framebuffer *fb;
 
 
 
-void fb_init(void);
+void fb_init(struct limine_framebuffer *f);
 void fb_puts(const char *s);
 void fb_putc(char ch);
 
