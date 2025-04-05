@@ -27,6 +27,11 @@ jobs:
       with:
         submodules: true
 
+    - name: Init submodules
+      run: |
+        git submodule init --recursive
+        git submodule update --init --recursive
+
     - name: Export HelixOS variables
       run: |
         export HELIX_SOURCE_DIR=${{env.HELIX_SCRIPTS_DIR}}
