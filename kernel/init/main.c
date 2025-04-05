@@ -3,7 +3,8 @@
 #include <stdbool.h>
 #include <framebuffer.h>
 #include <kstdlib.h>
-#include <mm.h>
+#include <pmm.h>
+#include <vmm.h>
 #include <arch.h>
 #include <devices/timer.h>
 #include <devices/gicv3.h>
@@ -16,7 +17,23 @@
 __attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
 
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_framebuffer_request fb_req = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST,
+    .revision = 0
+};
 
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_memmap_request mm = {
+    .id = LIMINE_MEMMAP_REQUEST,
+    .revision = 0
+};
+
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_kernel_address_request kern_addr_req = {
+    .id = LIMINE_KERNEL_ADDRESS_REQUEST,
+    .revision = 3
+};
 
 
 
@@ -28,17 +45,21 @@ void helix_init(void) {
         __hcf();
     }
 
-    fb_init();
-    mm_init();
-    pmm_init();
-    vmm_init();
+    struct limine_framebuffer_response *f = fb_req.response;
+    struct limine_memmap_response *m = mm.response;
+    struct limine_kernel_address_response *kr = kern_addr_req.response;
+
+
+    if (f->framebuffer_count >= 1) {
+        struct limine_framebuffer *fb = f->framebuffers[0];
+        fb_init(fb);
+    }
+
+    pmm_init(m->entries, m->entry_count);
+    vmm_init(kr->physical_base, kr->virtual_base, m->entries, m->entry_count);
     gic_init();
     timer_init();
     uart_init();
-
-    timer_set(1000);
-
-    printf("Done!\n");
 
     __hcf();
 }
