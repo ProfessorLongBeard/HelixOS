@@ -5,7 +5,7 @@
 #include <vmm.h>
 
 
-#define UART_BASE   (VMM_RECURSIVE_BASE + 0x09000000)
+#define UART_BASE   (VMM_VIRT_BASE + 0x09000000)
 
 #define UART_IRQ    33
 
