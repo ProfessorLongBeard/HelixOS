@@ -30,8 +30,7 @@ jobs:
     - name: Init submodules
       run: |
         git submodule sync --recursive
-        git submodule update --init --recursive
-        git submodule update --remote --recursive
+        git submodule update --init --recursive --remote
 
 
     - name: Export HelixOS variables
