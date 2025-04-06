@@ -3,13 +3,25 @@ OUTPUT_FORMAT("elf64-littleaarch64")
 ENTRY(_start)
 
 
+PF_R = 0x4;
+PF_W = 0x2;
+PF_X = 0x1;
+
+PHDR_RW = (PF_R | PF_W);
+PHDR_RX = (PF_R | PF_X);
+PHDR_RO = PF_R;
+
+
+
+
 PHDRS
 {
-    limine_requests PT_LOAD;
-    text PT_LOAD;
-    rodata PT_LOAD;
-    data PT_LOAD;
-    stack PT_LOAD;
+    limine_requests PT_LOAD     FLAGS(PHDR_RW);
+    text            PT_LOAD     FLAGS(PHDR_RX);
+    rodata          PT_LOAD     FLAGS(PHDR_RO);
+    data            PT_LOAD     FLAGS(PHDR_RW);
+    stack           PT_LOAD     FLAGS(PHDR_RW);
+    heap            PT_LOAD     FLAGS(PHDR_RW);
 }
 
 SECTIONS
@@ -57,7 +69,7 @@ SECTIONS
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-    .bss : {
+    .bss (NOLOAD) : {
         __sbss = .;
         *(.bss .bss.*)
         *(COMMON)
@@ -67,13 +79,22 @@ SECTIONS
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-    .stack : {
+    .stack (NOLOAD) : {
         . = ALIGN(16);
         __sstack = .;
-        . = . + 0x10000; /* Initial 64KB stack space */
+        . += 0x10000; /* Initial 64KB stack space */
         __estack = .;
         __stack_size = __estack - __sstack;
     } :stack
+
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+
+    .heap (NOLOAD) : {
+        __skernel_heap = .;
+        . += 0x20000; /* 2MB initial heap space */
+        __ekernel_heap = .;
+        __kernel_heap_size = __ekernel_heap - __skernel_heap;
+    } :heap
 
     __kernel_end = .;
 
