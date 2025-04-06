@@ -29,7 +29,8 @@ ${QEMU} \
     -m ${MEM} \
     -drive if=pflash,file=${EFI_ROM},format=raw,readonly=on \
     -drive if=pflash,file=${EFI_VARS},format=raw,readonly=off \
-    -drive if=virtio,file=${HDD_IMG},format=raw \
+    -drive if=none,file=${HDD_IMG},format=raw,id=vda1 \
+    -device virtio-blk-device,drive=vda1 \
     -usb \
     -device qemu-xhci \
     -device usb-kbd \
