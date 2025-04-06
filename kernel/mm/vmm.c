@@ -11,7 +11,8 @@
 
 
 
-page_table_t *pgd = NULL;
+static spinlock_t s;
+static page_table_t *pgd = NULL;
 
 
 
@@ -22,6 +23,8 @@ page_table_t *pgd = NULL;
 
 void vmm_init(uint64_t kernel_phys, uint64_t kernel_virt, struct limine_memmap_entry **mm, uint64_t mm_count) {
     assert(mm != NULL && mm_count >= 1);
+
+    spinlock_init(&s);
 
     if (!pgd) {
         pgd = pmm_alloc(1);
@@ -102,15 +105,26 @@ void vmm_init(uint64_t kernel_phys, uint64_t kernel_virt, struct limine_memmap_e
     vmm_map_range(pgd, stack_virt_start, stack_virt_end, stack_phys_start, PT_KERNEL_RW);
     vmm_flush_cache_range(stack_virt_start, stack_virt_end);
 
+    uint64_t kheap_virt_start = (uint64_t)__skernel_heap;
+    uint64_t kheap_virt_end = (uint64_t)__ekernel_heap;
+    uint64_t kheap_phys_start = (uint64_t)kernel_phys + (kheap_virt_start - kernel_virt);
+
+    vmm_map_range(pgd, kheap_virt_start, kheap_virt_end, kheap_phys_start, PT_KERNEL_RW);
+    vmm_flush_cache_range(kheap_virt_start, kheap_virt_end);
+
     vmm_switch_pagemap(pgd);
     vmm_inval_all();
 
     printf("VMM: Initialized!\n");
 }
 
+page_table_t *vmm_get_pgd(void) {
+    return (page_table_t *)pgd;
+}
+
 void vmm_map_range(page_table_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys, uint64_t flags) {
     assert(table != NULL);
-    assert(virt_start < virt_end);
+    assert(virt_start <= virt_end);
 
     uint64_t virt_start_aligned = ALIGN_DOWN(virt_start, PAGE_SIZE);
     uint64_t virt_end_aligned = ALIGN_UP(virt_end, PAGE_SIZE);
@@ -122,18 +136,6 @@ void vmm_map_range(page_table_t *table, uint64_t virt_start, uint64_t virt_end, 
 
     for (uint64_t i = 0; i < num_pages; i++) {
         vmm_map(table, virt_start_aligned + (i * PAGE_SIZE), phys_aligned + (i * PAGE_SIZE), flags);
-    }
-}
-
-void vmm_unmap_range(page_table_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys_start) {
-    assert(table != NULL);
-    assert(virt_start < virt_end);
-
-    uint64_t virt_size = virt_end - virt_start;
-    uint64_t num_pages = SIZE_TO_PAGES(virt_size, PAGE_SIZE);
-
-    for (uint64_t i = 0; i < num_pages; i++) {
-        vmm_unmap(table, virt_start + (i * PAGE_SIZE), phys_start + (i * PAGE_SIZE));
     }
 }
 
@@ -214,11 +216,23 @@ void vmm_unmap(page_table_t *table, uint64_t virt, uint64_t phys) {
         return;
     }
 
-    uint64_t pte = PHYS_TO_VIRT(l3->entries[l3_idx] & PT_PADDR_MASK);
-    printf("pte 0x%lx\n", pte);
+    uint64_t pte = l3->entries[l3_idx] & PT_PADDR_MASK;
+    assert(pte == phys);
 
     l3->entries[l3_idx] = 0;
     vmm_inval_page((uint64_t)pte);
+}
+
+void vmm_unmap_range(page_table_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys_start) {
+    assert(table != NULL);
+    assert(virt_start < virt_end);
+
+    uint64_t virt_size = virt_end - virt_start;
+    uint64_t num_pages = SIZE_TO_PAGES(virt_size, PAGE_SIZE);
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        vmm_unmap(table, virt_start + (i * PAGE_SIZE), phys_start + (i * PAGE_SIZE));
+    }
 }
 
 void vmm_inval_all(void) {
