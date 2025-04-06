@@ -26,10 +26,6 @@ void vmm_init(uint64_t kernel_phys, uint64_t kernel_virt, struct limine_memmap_e
     if (!pgd) {
         pgd = pmm_alloc(1);
         assert(pgd != NULL);
-
-        // Map page global directory
-        vmm_map(pgd, PHYS_TO_VIRT((uint64_t)pgd), (uint64_t)pgd, PT_KERNEL_RW);
-        vmm_flush_cache_range(PHYS_TO_VIRT((uint64_t)pgd), PHYS_TO_VIRT((uint64_t)pgd + PAGE_SIZE));
     }
 
     for (uint64_t i = 0; i < mm_count; i++) {
@@ -112,10 +108,6 @@ void vmm_init(uint64_t kernel_phys, uint64_t kernel_virt, struct limine_memmap_e
     printf("VMM: Initialized!\n");
 }
 
-static void vmm_map_table(page_table_t *table, uint64_t virt, uint64_t phys) {
-    vmm_map(table, virt, phys, PT_TABLE | PT_VALID);
-}
-
 page_table_t *vmm_get_table(page_table_t *table, uint64_t idx) {
     page_table_t *pt = NULL;
 
@@ -177,8 +169,6 @@ void vmm_map(page_table_t *table, uint64_t virt, uint64_t phys, uint64_t flags) 
         assert(l1 != NULL);
 
         l0->entries[l0_idx] = (uint64_t)l1 | PT_TABLE | PT_VALID;
-
-        vmm_map_table(pgd, PHYS_TO_VIRT((uint64_t)l0), (uint64_t)l0);
     }
 
     page_table_t *l1 = (page_table_t *)PHYS_TO_VIRT(l0->entries[l0_idx] & ~0xFFF);
@@ -188,8 +178,6 @@ void vmm_map(page_table_t *table, uint64_t virt, uint64_t phys, uint64_t flags) 
         assert(l2 != NULL);
 
         l1->entries[l1_idx] = (uint64_t)l2 | PT_TABLE | PT_VALID;
-
-        vmm_map_table(pgd, PHYS_TO_VIRT((uint64_t)l1), (uint64_t)l1);
     }
 
     page_table_t *l2 = (page_table_t *)PHYS_TO_VIRT(l1->entries[l1_idx] & ~0xFFF);
@@ -199,8 +187,6 @@ void vmm_map(page_table_t *table, uint64_t virt, uint64_t phys, uint64_t flags) 
         assert(l3 != NULL);
 
         l2->entries[l2_idx] = (uint64_t)l3 | PT_TABLE | PT_VALID;
-
-        vmm_map_table(pgd, PHYS_TO_VIRT((uint64_t)l2), (uint64_t)l2);
     }
 
     page_table_t *l3 = (page_table_t *)PHYS_TO_VIRT(l2->entries[l2_idx] & ~0xFFF);
