@@ -11,7 +11,7 @@
 
 
 
-static page_table_t *pgd = NULL;
+page_table_t *pgd = NULL;
 
 
 
@@ -42,6 +42,11 @@ void vmm_init(uint64_t kernel_phys, uint64_t kernel_virt, struct limine_memmap_e
 
         if (e->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) {
             // Re-map bootloader reclaim memory for kernel use
+            vmm_map_range(pgd, PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length), e->base, PT_KERNEL_RW);
+            vmm_flush_cache_range(PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length));
+        }
+
+        if (e->type == LIMINE_MEMMAP_USABLE) {
             vmm_map_range(pgd, PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length), e->base, PT_KERNEL_RW);
             vmm_flush_cache_range(PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length));
         }
@@ -107,6 +112,22 @@ void vmm_init(uint64_t kernel_phys, uint64_t kernel_virt, struct limine_memmap_e
     printf("VMM: Initialized!\n");
 }
 
+static void vmm_map_table(page_table_t *table, uint64_t virt, uint64_t phys) {
+    vmm_map(table, virt, phys, PT_TABLE | PT_VALID);
+}
+
+page_table_t *vmm_get_table(page_table_t *table, uint64_t idx) {
+    page_table_t *pt = NULL;
+
+    assert(table != NULL);
+
+    if (table->entries[idx] & (PT_VALID | PT_TABLE)) {
+        pt = (page_table_t *)PHYS_TO_VIRT(table->entries[idx] & ~0xFFF);
+    }
+
+    return pt;
+}
+
 void vmm_map_range(page_table_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys, uint64_t flags) {
     assert(table != NULL);
     assert(virt_start < virt_end);
@@ -156,6 +177,8 @@ void vmm_map(page_table_t *table, uint64_t virt, uint64_t phys, uint64_t flags) 
         assert(l1 != NULL);
 
         l0->entries[l0_idx] = (uint64_t)l1 | PT_TABLE | PT_VALID;
+
+        vmm_map_table(pgd, PHYS_TO_VIRT((uint64_t)l0), (uint64_t)l0);
     }
 
     page_table_t *l1 = (page_table_t *)PHYS_TO_VIRT(l0->entries[l0_idx] & ~0xFFF);
@@ -165,6 +188,8 @@ void vmm_map(page_table_t *table, uint64_t virt, uint64_t phys, uint64_t flags) 
         assert(l2 != NULL);
 
         l1->entries[l1_idx] = (uint64_t)l2 | PT_TABLE | PT_VALID;
+
+        vmm_map_table(pgd, PHYS_TO_VIRT((uint64_t)l1), (uint64_t)l1);
     }
 
     page_table_t *l2 = (page_table_t *)PHYS_TO_VIRT(l1->entries[l1_idx] & ~0xFFF);
@@ -174,6 +199,8 @@ void vmm_map(page_table_t *table, uint64_t virt, uint64_t phys, uint64_t flags) 
         assert(l3 != NULL);
 
         l2->entries[l2_idx] = (uint64_t)l3 | PT_TABLE | PT_VALID;
+
+        vmm_map_table(pgd, PHYS_TO_VIRT((uint64_t)l2), (uint64_t)l2);
     }
 
     page_table_t *l3 = (page_table_t *)PHYS_TO_VIRT(l2->entries[l2_idx] & ~0xFFF);
@@ -202,34 +229,23 @@ void vmm_unmap(page_table_t *table, uint64_t virt, uint64_t phys) {
         return;
     }
 
-    l2 = vmm_get_table(l1, l1_idx);
+    l2 = vmm_get_table(table, l1_idx);
     
     if (!l2) {
         return;
     }
 
-    l3 = vmm_get_table(l2, l2_idx);
+    l3 = vmm_get_table(table, l2_idx);
 
     if (!l3) {
         return;
     }
 
     uint64_t pte = l3->entries[l3_idx] & PT_PADDR_MASK;
+    printf("pte 0x%lx\n", pte);
 
     l3->entries[l3_idx] = 0;
     vmm_inval_page((uint64_t)pte);
-}
-
-page_table_t *vmm_get_table(page_table_t *table, uint64_t idx) {
-    page_table_t *curr = table, *pt = NULL;
-
-    assert(curr != NULL);
-
-    if (curr->entries[idx] & (PT_VALID | PT_TABLE)) {
-        pt = (page_table_t *)PHYS_TO_VIRT(curr->entries[idx] & ~0xFFF);
-    }
-
-    return pt;
 }
 
 void vmm_inval_all(void) {
