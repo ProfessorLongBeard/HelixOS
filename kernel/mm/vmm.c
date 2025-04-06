@@ -151,8 +151,7 @@ void vmm_map(page_table_t *table, uint64_t virt, uint64_t phys, uint64_t flags) 
     assert(table != NULL);
     page_table_t *l0 = (page_table_t *)PHYS_TO_VIRT((uint64_t)table);
 
-
-
+    spinlock_acquire(&s);
 
     if (!(l0->entries[l0_idx] & PT_VALID)) {
         page_table_t *l1 = pmm_alloc(1);
@@ -184,6 +183,8 @@ void vmm_map(page_table_t *table, uint64_t virt, uint64_t phys, uint64_t flags) 
     if (!(l3->entries[l3_idx] & PT_VALID)) {
         l3->entries[l3_idx] = (uint64_t)phys | flags;
     }
+
+    spinlock_release(&s);
 }
 
 void vmm_unmap(page_table_t *table, uint64_t virt, uint64_t phys) {
@@ -197,6 +198,8 @@ void vmm_unmap(page_table_t *table, uint64_t virt, uint64_t phys) {
     assert(table != NULL);
     page_table_t *l0 = (page_table_t *)PHYS_TO_VIRT((uint64_t)table);
     page_table_t *l1 = NULL, *l2 = NULL, *l3 = NULL;
+
+    spinlock_acquire(&s);
 
     if (l0->entries[l0_idx] & PT_VALID) {
         l1 = (page_table_t *)PHYS_TO_VIRT(l0->entries[l0_idx] & ~0xFFF);
@@ -221,6 +224,8 @@ void vmm_unmap(page_table_t *table, uint64_t virt, uint64_t phys) {
 
     l3->entries[l3_idx] = 0;
     vmm_inval_page((uint64_t)pte);
+
+    spinlock_release(&s);
 }
 
 void vmm_unmap_range(page_table_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys_start) {
