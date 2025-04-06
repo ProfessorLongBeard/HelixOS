@@ -1,78 +1,49 @@
-#include <mm.h>
-#include <arch.h>
 #include <kstdio.h>
 #include <kstring.h>
 #include <kstdlib.h>
 #include <limine.h>
 #include <kernel.h>
-#include <framebuffer.h>
+#include <arch.h>
+#include <pmm.h>
+#include <vmm.h>
+
+
+
+
+
+static page_table_t *pgd = NULL;
 
 
 
 
 
 
-__attribute__((used, section(".limine_requests")))
-static volatile struct limine_kernel_address_request kern_addr_req = {
-    .id = LIMINE_KERNEL_ADDRESS_REQUEST,
-    .revision = 0  
-};
 
 
+void vmm_init(uint64_t kernel_phys, uint64_t kernel_virt, struct limine_memmap_entry **mm, uint64_t mm_count) {
+    assert(mm != NULL && mm_count >= 1);
 
-static uint64_t *kernel_page_table;
+    if (!pgd) {
+        pgd = pmm_alloc(1);
+        assert(pgd != NULL);
 
-
-
-
-void vmm_init(void) {
-    struct limine_kernel_address_response *kern_addr = kern_addr_req.response;
-    uint64_t hhdm = mm_get_hhdm_offset();
-    uint64_t kernel_phys = kern_addr->physical_base;
-    uint64_t kernel_virt = (uint64_t)__kernel_start;
-    uint64_t kernel_virt_end = (uint64_t)__kernel_end;
-
-
-
-
-
-
-    if (!kernel_page_table) {
-        kernel_page_table = pmm_alloc();
+        // Map page global directory
+        vmm_map(pgd, PHYS_TO_VIRT((uint64_t)pgd), (uint64_t)pgd, PT_KERNEL_RW);
+        vmm_flush_cache_range(PHYS_TO_VIRT((uint64_t)pgd), PHYS_TO_VIRT((uint64_t)pgd + PAGE_SIZE));
     }
 
-    uint64_t num_map_entries = mm_get_num_entries();
+    for (uint64_t i = 0; i < mm_count; i++) {
+        struct limine_memmap_entry *e = mm[i];
 
-    for (uint64_t i = 0; i < num_map_entries; i++) {
-        struct limine_memmap_entry *e = mm_entry_for_each(i);
-
-        if (e->type == LIMINE_MEMMAP_USABLE) {
-
-            // Map usable memory regions
-            uint64_t ram_phys_start = e->base;
-            uint64_t ram_virt_start = hhdm + e->base;
-            uint64_t ram_virt_end = ram_virt_start + e->length;
-
-            vmm_map_range(kernel_page_table, ram_virt_start, ram_virt_end, ram_phys_start, PT_KERNEL_RW);
-            vmm_flush_cache_range(ram_virt_end, ram_virt_end);
+        if (e->type == LIMINE_MEMMAP_FRAMEBUFFER) {
+            vmm_map_range(pgd, PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length), e->base, PT_DEVICE_RW);
+            vmm_flush_cache_range(PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length));
         }
 
         if (e->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) {
-            uint64_t reclaim_phys_start = e->base;
-            uint64_t reclaim_virt_start = hhdm + e->base;
-            uint64_t reclaim_virt_end = reclaim_virt_start + e->length;
-
-            vmm_map_range(kernel_page_table, reclaim_virt_start, reclaim_virt_end, reclaim_phys_start, PT_KERNEL_RW);
-            vmm_flush_cache_range(reclaim_virt_start, reclaim_virt_end);
-        }
-
-        if (e->type == LIMINE_MEMMAP_FRAMEBUFFER) {
-            uint64_t fb_phys_base = e->base;
-            uint64_t fb_virt_base = hhdm + e->base;
-            uint64_t fb_virt_end = fb_virt_base + e->length;
-        
-            vmm_map_range(kernel_page_table, fb_virt_base, fb_virt_end, fb_phys_base, PT_DEVICE_RW);
-            vmm_flush_cache_range(fb_virt_base, fb_virt_end);        
+            // Re-map bootloader reclaim memory for kernel use
+            vmm_map_range(pgd, PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length), e->base, PT_KERNEL_RW);
+            vmm_flush_cache_range(PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length));
         }
     }
 
@@ -81,61 +52,62 @@ void vmm_init(void) {
     uint64_t mmio_phys_end = 0x09030000;
     uint64_t mmio_size = mmio_phys_end - mmio_phys_start;
 
-    uint64_t mmio_virt_start = hhdm + mmio_phys_start;
+    uint64_t mmio_virt_start = VMM_VIRT_BASE + mmio_phys_start;
     uint64_t mmio_virt_end = mmio_virt_start + mmio_size;
 
-    vmm_map_range(kernel_page_table, mmio_virt_start, mmio_virt_end, mmio_phys_start, PT_DEVICE_RW);
+    vmm_map_range(pgd, mmio_virt_start, mmio_virt_end, mmio_phys_start, PT_DEVICE_RW);
     vmm_flush_cache_range(mmio_virt_start, mmio_virt_end);
 
+    // Re-map kernel sections
     uint64_t reqs_virt_start = (uint64_t)__slimine_requests;
     uint64_t reqs_virt_end = (uint64_t)__elimine_requests;
     uint64_t reqs_phys_start = (uint64_t)kernel_phys + ((uint64_t)reqs_virt_start - (uint64_t)kernel_virt);
 
-    vmm_map_range(kernel_page_table, reqs_virt_start, reqs_virt_end, reqs_phys_start, PT_KERNEL_RW);
+    vmm_map_range(pgd, reqs_virt_start, reqs_virt_end, reqs_phys_start, PT_KERNEL_RW);
     vmm_flush_cache_range(reqs_virt_start, reqs_virt_end);
 
     uint64_t text_virt_start = (uint64_t)__stext;
     uint64_t text_virt_end = (uint64_t)__etext;
     uint64_t text_phys_start = (uint64_t)kernel_phys + ((uint64_t)text_virt_start - (uint64_t)kernel_virt);
 
-    vmm_map_range(kernel_page_table, text_virt_start, text_virt_end, text_phys_start, PT_KERNEL_RW);
+    vmm_map_range(pgd, text_virt_start, text_virt_end, text_phys_start, PT_KERNEL_RW);
     vmm_flush_cache_range(text_virt_start, text_virt_end);
 
     uint64_t rodata_virt_start = (uint64_t)__srodata;
     uint64_t rodata_virt_end = (uint64_t)__erodata;
     uint64_t rodata_phys_start = (uint64_t)kernel_phys + ((uint64_t)rodata_virt_start - (uint64_t)kernel_virt);
 
-    vmm_map_range(kernel_page_table, rodata_virt_start, rodata_virt_end, rodata_phys_start, PT_KERNEL_RO);
+    vmm_map_range(pgd, rodata_virt_start, rodata_virt_end, rodata_phys_start, PT_KERNEL_RO);
     vmm_flush_cache_range(rodata_virt_start, rodata_virt_end);
 
     uint64_t data_virt_start = (uint64_t)__sdata;
     uint64_t data_virt_end = (uint64_t)__edata;
     uint64_t data_phys_start = (uint64_t)kernel_phys + (data_virt_start - kernel_virt);
 
-    vmm_map_range(kernel_page_table, data_virt_start, data_virt_end, data_phys_start, PT_KERNEL_RW);
+    vmm_map_range(pgd, data_virt_start, data_virt_end, data_phys_start, PT_KERNEL_RW);
     vmm_flush_cache_range(data_virt_start, data_virt_end);
 
     uint64_t bss_virt_start = (uint64_t)__sbss;
     uint64_t bss_virt_end = (uint64_t)__ebss;
     uint64_t bss_phys_start = (uint64_t)kernel_phys + (bss_virt_start - kernel_virt);
 
-    vmm_map_range(kernel_page_table, bss_virt_start, bss_virt_end, bss_phys_start, PT_KERNEL_RW);
+    vmm_map_range(pgd, bss_virt_start, bss_virt_end, bss_phys_start, PT_KERNEL_RW);
     vmm_flush_cache_range(bss_virt_start, bss_virt_end);
 
     uint64_t stack_virt_start = (uint64_t)__sstack;
     uint64_t stack_virt_end = (uint64_t)__estack;    
     uint64_t stack_phys_start = (uint64_t)kernel_phys + (stack_virt_start - kernel_virt);
 
-    vmm_map_range(kernel_page_table, stack_virt_start, stack_virt_end, stack_phys_start, PT_KERNEL_RW);
+    vmm_map_range(pgd, stack_virt_start, stack_virt_end, stack_phys_start, PT_KERNEL_RW);
     vmm_flush_cache_range(stack_virt_start, stack_virt_end);
 
-    vmm_switch_pagemap(kernel_page_table);
+    vmm_switch_pagemap(pgd);
     vmm_inval_all();
 
     printf("VMM: Initialized!\n");
 }
 
-void vmm_map_range(uint64_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys, uint64_t flags) {
+void vmm_map_range(page_table_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys, uint64_t flags) {
     assert(table != NULL);
     assert(virt_start < virt_end);
 
@@ -152,7 +124,7 @@ void vmm_map_range(uint64_t *table, uint64_t virt_start, uint64_t virt_end, uint
     }
 }
 
-void vmm_unmap_range(uint64_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys_start) {
+void vmm_unmap_range(page_table_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys_start) {
     assert(table != NULL);
     assert(virt_start < virt_end);
 
@@ -164,95 +136,100 @@ void vmm_unmap_range(uint64_t *table, uint64_t virt_start, uint64_t virt_end, ui
     }
 }
 
-void vmm_map(uint64_t *table, uint64_t virt, uint64_t phys, uint64_t flags) {
+void vmm_map(page_table_t *table, uint64_t virt, uint64_t phys, uint64_t flags) {
     uint64_t l0_idx = PGD_IDX(virt);
     uint64_t l1_idx = PUD_IDX(virt);
     uint64_t l2_idx = PMD_IDX(virt);
     uint64_t l3_idx = PTE_IDX(virt);
-    uint64_t hhdm = mm_get_hhdm_offset();
 
 
 
 
     assert(table != NULL);
-    uint64_t *l0 = (uint64_t *)table;
+    page_table_t *l0 = (page_table_t *)PHYS_TO_VIRT((uint64_t)table);
 
 
-    if(!((uint64_t)l0[VMM_RECURSIVE_IDX] & PT_VALID)) {
-        uint64_t l0_phys = ((uint64_t)l0 - hhdm);
 
-        l0[VMM_RECURSIVE_IDX] = (uint64_t)l0_phys | PT_TABLE | PT_VALID;
-    }
 
-    if (!(l0[l0_idx] & PT_VALID)) {
-        uint64_t *l1 = (uint64_t *)pmm_alloc();
+    if (!(l0->entries[l0_idx] & PT_VALID)) {
+        page_table_t *l1 = pmm_alloc(1);
         assert(l1 != NULL);
 
-        uint64_t l1_phys = ((uint64_t)l1 - hhdm);
-
-        l0[l0_idx] = (uint64_t)l1_phys | PT_TABLE | PT_VALID;
+        l0->entries[l0_idx] = (uint64_t)l1 | PT_TABLE | PT_VALID;
     }
 
-    uint64_t *l1 = (uint64_t *)((l0[l0_idx] & ~0xFFF) + hhdm);
+    page_table_t *l1 = (page_table_t *)PHYS_TO_VIRT(l0->entries[l0_idx] & ~0xFFF);
     
-    if (!(l1[l1_idx] & PT_VALID)) {
-        uint64_t *l2 = (uint64_t *)pmm_alloc();
+    if (!(l1->entries[l1_idx] & PT_VALID)) {
+        page_table_t *l2 = (page_table_t *)pmm_alloc(1);
         assert(l2 != NULL);
 
-        uint64_t l2_phys = ((uint64_t)l2 - hhdm);
-
-        l1[l1_idx] = (uint64_t)l2_phys | PT_TABLE | PT_VALID;
+        l1->entries[l1_idx] = (uint64_t)l2 | PT_TABLE | PT_VALID;
     }
 
-    uint64_t *l2 = (uint64_t *)((l1[l1_idx] & ~0xFFF) + hhdm);
+    page_table_t *l2 = (page_table_t *)PHYS_TO_VIRT(l1->entries[l1_idx] & ~0xFFF);
     
-    if (!(l2[l2_idx] & PT_VALID)) {
-        uint64_t *l3 = (uint64_t *)pmm_alloc();
+    if (!(l2->entries[l2_idx] & PT_VALID)) {
+        page_table_t *l3 = (page_table_t *)pmm_alloc(1);
         assert(l3 != NULL);
 
-        uint64_t l3_phys = ((uint64_t)l3 - hhdm);
-
-        l2[l2_idx] = (uint64_t)l3_phys | PT_TABLE | PT_VALID;
+        l2->entries[l2_idx] = (uint64_t)l3 | PT_TABLE | PT_VALID;
     }
 
-    uint64_t *l3 = (uint64_t *)((l2[l2_idx] & ~0xFFF) + hhdm);
+    page_table_t *l3 = (page_table_t *)PHYS_TO_VIRT(l2->entries[l2_idx] & ~0xFFF);
 
-    if (!(l3[l3_idx] & PT_VALID)) {
-        l3[l3_idx] = phys | flags;
+    if (!(l3->entries[l3_idx] & PT_VALID)) {
+        l3->entries[l3_idx] = (uint64_t)phys | flags;
     }
 }
 
-void vmm_unmap(uint64_t *table, uint64_t virt, uint64_t phys) {
+void vmm_unmap(page_table_t *table, uint64_t virt, uint64_t phys) {
     uint64_t l0_idx = PGD_IDX(virt);
     uint64_t l1_idx = PUD_IDX(virt);
     uint64_t l2_idx = PMD_IDX(virt);
     uint64_t l3_idx = PTE_IDX(virt);
-    uint64_t hhdm = mm_get_hhdm_offset();
 
 
     
     assert(table != NULL);
-    uint64_t *l0 = (uint64_t *)table;
-    uint64_t *l1 = NULL, *l2 = NULL, *l3 = NULL;
+    page_table_t *l0 = (page_table_t *)PHYS_TO_VIRT((uint64_t)table);
+    page_table_t *l1 = NULL, *l2 = NULL, *l3 = NULL;
 
 
-    if (l0[l0_idx & PT_VALID]) {
-        l1 = (uint64_t *)((l0[l0_idx] & ~0xFFF) + hhdm);
+    l1 = vmm_get_table(table, l0_idx);
+
+    if (!l1) {
+        return;
     }
 
-    if (l1[l1_idx] & PT_VALID) {
-        l2 = (uint64_t *)((l1[l1_idx] & ~0xFFF) + hhdm);
-    }
+    l2 = vmm_get_table(l1, l1_idx);
     
-    if (l2[l2_idx] & PT_VALID) {
-        l3 = (uint64_t *)((l2[l2_idx] & ~0xFFF) + hhdm);
+    if (!l2) {
+        return;
     }
 
-    uint64_t pte = l3[l3_idx] & PT_PADDR_MASK;
-    assert(pte == phys);
+    l3 = vmm_get_table(l2, l2_idx);
 
-    l3[l3_idx] = 0;
+    if (!l3) {
+        return;
+    }
+
+    uint64_t pte = l3->entries[l3_idx] & PT_PADDR_MASK;
+
+    l3->entries[l3_idx] = 0;
     vmm_inval_page((uint64_t)pte);
+}
+
+page_table_t *vmm_get_table(page_table_t *table, uint64_t idx) {
+    page_table_t *curr = table, *pt = NULL;
+
+    assert(curr != NULL);
+
+    if (curr->entries[idx] & (PT_VALID | PT_TABLE)) {
+        pt = (page_table_t *)PHYS_TO_VIRT(curr->entries[idx] & ~0xFFF);
+    }
+
+    return pt;
 }
 
 void vmm_inval_all(void) {
@@ -263,8 +240,8 @@ void vmm_inval_page(uint64_t addr) {
     __tlb_inval_page(addr);
 }
 
-void vmm_switch_pagemap(uint64_t *page_map) {
-    __ttbr1_write((uint64_t)page_map);
+void vmm_switch_pagemap(page_table_t *table) {
+    __ttbr1_write((uint64_t)table);
 }
 
 void vmm_flush_dcache_addr(uint64_t addr) {
