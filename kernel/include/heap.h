@@ -19,12 +19,12 @@ typedef struct kslab {
     size_t          object_size;
     void            *free_list;
     struct kslab    *next;
-} kslab_t;
+} __attribute__((packed)) kslab_t;
 
 typedef struct kslab_cache {
     uint64_t    object_count;
     kslab_t     *slab_list;
-} kslab_cache_t;
+} __attribute__((packed)) kslab_cache_t;
 
 
 
