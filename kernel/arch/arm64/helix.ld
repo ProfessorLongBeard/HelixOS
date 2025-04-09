@@ -69,7 +69,7 @@ SECTIONS
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-    .bss (NOLOAD) : {
+    .bss : {
         __sbss = .;
         *(.bss .bss.*)
         *(COMMON)
@@ -79,22 +79,13 @@ SECTIONS
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-    .stack (NOLOAD) : {
+    .stack : {
         . = ALIGN(16);
         __sstack = .;
         . += 0x10000; /* Initial 64KB stack space */
         __estack = .;
         __stack_size = __estack - __sstack;
     } :stack
-
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-
-    .heap (NOLOAD) : {
-        __skernel_heap = .;
-        . += 0x20000; /* 2MB initial heap space */
-        __ekernel_heap = .;
-        __kernel_heap_size = __ekernel_heap - __skernel_heap;
-    } :heap
 
     __kernel_end = .;
 
