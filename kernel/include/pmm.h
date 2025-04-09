@@ -8,28 +8,31 @@
 
 
 
-#define MAX_SLABS   10
+#define BITS_PER_BYTE   8
+
+
 
 typedef struct {
-    spinlock_t      s;
-    uint64_t        hhdm;
-    uint64_t        free_pages;
-    uint64_t        used_pages;
-    uint64_t        last_used_idx;
+    spinlock_t  s;
 
-    uint64_t        bitmap_base;
-    uint64_t        bitmap_end;
-    uint64_t        bitmap_size;
-    uint8_t         *bitmap;
-} pmm_t;
+    uint64_t    phys_start;
+    uint64_t    phys_end;
+    size_t      phys_size;
+
+    uint64_t    bitmap_base;
+    uint64_t    bitmap_end;
+    size_t      bitmap_size;
+
+    size_t      total_pages;
+    size_t      used_pages;
+    size_t      reserved_pages;
+
+    uint8_t     *bitmap;
+} bitmap_t;
 
 
-
-
-
-
-void pmm_init(struct limine_memmap_entry **mm, uint64_t mm_count);
-void *pmm_alloc(uint64_t page_count);
-void pmm_free(void *ptr, uint64_t page_count);
+void pmm_init(struct limine_memmap_response *m);
+void *pmm_alloc(void);
+void pmm_free(void *ptr);
 
 #endif

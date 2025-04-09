@@ -1,5 +1,6 @@
 target_sources(${KERNEL_TARGET} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/pmm.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/vmm.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/heap.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/slab.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/alloc.c"
 )

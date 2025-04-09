@@ -4,8 +4,7 @@
 #include <limine.h>
 #include <kernel.h>
 #include <arch.h>
-#include <pmm.h>
-#include <vmm.h>
+#include <mm.h>
 
 
 
@@ -21,42 +20,61 @@ static page_table_t *pgd = NULL;
 
 
 
-void vmm_init(uint64_t kernel_phys, uint64_t kernel_virt, struct limine_memmap_entry **mm, uint64_t mm_count) {
-    assert(mm != NULL && mm_count >= 1);
+void vmm_init(uint64_t kernel_phys, uint64_t kernel_virt, struct limine_memmap_response *m) {
+    assert(m != NULL);
 
     spinlock_init(&s);
 
     if (!pgd) {
-        pgd = pmm_alloc(1);
+        pgd = pmm_alloc();
         assert(pgd != NULL);
     }
 
-    for (uint64_t i = 0; i < mm_count; i++) {
-        struct limine_memmap_entry *e = mm[i];
+    for (uint64_t i = 0; i < m->entry_count; i++) {
+        struct limine_memmap_entry *e = m->entries[i];
 
         if (e->type == LIMINE_MEMMAP_FRAMEBUFFER) {
-            vmm_map_range(pgd, PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length), e->base, PT_DEVICE_RW);
-            vmm_flush_cache_range(PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length));
+            uint64_t fb_phys_base = e->base;
+            uint64_t fb_virt_base = (uint64_t)VMM_VIRT_BASE + fb_phys_base;
+            uint64_t fb_virt_end = fb_virt_base + e->length;
+
+            vmm_map_range(pgd, fb_virt_base, fb_virt_end, fb_phys_base, PT_DEVICE_RW);
+            vmm_flush_cache_range(fb_virt_base, fb_virt_end);
         }
 
         if (e->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) {
-            // Re-map bootloader reclaim memory for kernel use
-            vmm_map_range(pgd, PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length), e->base, PT_KERNEL_RW);
-            vmm_flush_cache_range(PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length));
+            uint64_t reclaim_phys_base = e->base;
+            uint64_t reclaim_virt_base = (uint64_t)VMM_VIRT_BASE + reclaim_phys_base;
+            uint64_t reclaim_virt_end = reclaim_virt_base + e->length;
+
+            vmm_map_range(pgd, reclaim_virt_base, reclaim_virt_end, reclaim_phys_base, PT_KERNEL_RW);
+            vmm_flush_cache_range(reclaim_virt_base, reclaim_virt_end);
         }
 
         if (e->type == LIMINE_MEMMAP_USABLE) {
-            vmm_map_range(pgd, PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length), e->base, PT_KERNEL_RW);
-            vmm_flush_cache_range(PHYS_TO_VIRT(e->base), PHYS_TO_VIRT(e->base + e->length));
+            uint64_t mem_phys_base = e->base;
+            uint64_t mem_virt_base = (uint64_t)VMM_VIRT_BASE + mem_phys_base;
+            uint64_t mem_virt_end = mem_virt_base + e->length;
+
+            vmm_map_range(pgd, mem_virt_base, mem_virt_end, mem_phys_base, PT_KERNEL_RW);
+            vmm_flush_cache_range(mem_virt_base, mem_virt_end);
         }
     }
+
+    // Map virtio-mmio
+    uint64_t virtio_mmio_phys_start = 0x0A000000;
+    uint64_t virtio_mmio_virt_start = (uint64_t)VMM_VIRT_BASE + virtio_mmio_phys_start;
+    uint64_t virtio_mmio_virt_end = virtio_mmio_virt_start + PAGE_SIZE;
+
+    vmm_map(pgd, virtio_mmio_virt_start, virtio_mmio_phys_start, PT_DEVICE_RW);
+    vmm_flush_cache_range(virtio_mmio_virt_start, virtio_mmio_virt_end);    
 
     // Map GIC, UART, RTC, etc
     uint64_t mmio_phys_start = 0x08000000;
     uint64_t mmio_phys_end = 0x09030000;
     uint64_t mmio_size = mmio_phys_end - mmio_phys_start;
 
-    uint64_t mmio_virt_start = VMM_VIRT_BASE + mmio_phys_start;
+    uint64_t mmio_virt_start = (uint64_t)VMM_VIRT_BASE + mmio_phys_start;
     uint64_t mmio_virt_end = mmio_virt_start + mmio_size;
 
     vmm_map_range(pgd, mmio_virt_start, mmio_virt_end, mmio_phys_start, PT_DEVICE_RW);
@@ -149,33 +167,33 @@ void vmm_map(page_table_t *table, uint64_t virt, uint64_t phys, uint64_t flags) 
 
 
     assert(table != NULL);
-    page_table_t *l0 = (page_table_t *)PHYS_TO_VIRT((uint64_t)table);
+    page_table_t *l0 = (page_table_t *)table;
 
     spinlock_acquire(&s);
 
     if (!(l0->entries[l0_idx] & PT_VALID)) {
-        page_table_t *l1 = pmm_alloc(1);
+        page_table_t *l1 = pmm_alloc();
         assert(l1 != NULL);
 
-        l0->entries[l0_idx] = (uint64_t)l1 | PT_TABLE | PT_VALID;
+        l0->entries[l0_idx] = VIRT_TO_PHYS((uint64_t)l0) | PT_TABLE | PT_VALID;
     }
 
     page_table_t *l1 = (page_table_t *)PHYS_TO_VIRT(l0->entries[l0_idx] & ~0xFFF);
     
     if (!(l1->entries[l1_idx] & PT_VALID)) {
-        page_table_t *l2 = (page_table_t *)pmm_alloc(1);
+        page_table_t *l2 = (page_table_t *)pmm_alloc();
         assert(l2 != NULL);
 
-        l1->entries[l1_idx] = (uint64_t)l2 | PT_TABLE | PT_VALID;
+        l1->entries[l1_idx] = VIRT_TO_PHYS((uint64_t)l2) | PT_TABLE | PT_VALID;
     }
 
     page_table_t *l2 = (page_table_t *)PHYS_TO_VIRT(l1->entries[l1_idx] & ~0xFFF);
     
     if (!(l2->entries[l2_idx] & PT_VALID)) {
-        page_table_t *l3 = (page_table_t *)pmm_alloc(1);
+        page_table_t *l3 = (page_table_t *)pmm_alloc();
         assert(l3 != NULL);
 
-        l2->entries[l2_idx] = (uint64_t)l3 | PT_TABLE | PT_VALID;
+        l2->entries[l2_idx] = VIRT_TO_PHYS((uint64_t)l3) | PT_TABLE | PT_VALID;
     }
 
     page_table_t *l3 = (page_table_t *)PHYS_TO_VIRT(l2->entries[l2_idx] & ~0xFFF);
@@ -196,7 +214,7 @@ void vmm_unmap(page_table_t *table, uint64_t virt, uint64_t phys) {
 
     
     assert(table != NULL);
-    page_table_t *l0 = (page_table_t *)PHYS_TO_VIRT((uint64_t)table);
+    page_table_t *l0 = (page_table_t *)table;
     page_table_t *l1 = NULL, *l2 = NULL, *l3 = NULL;
 
     spinlock_acquire(&s);

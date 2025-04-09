@@ -1,174 +1,132 @@
 #include <kstdio.h>
 #include <kstdlib.h>
 #include <stdbool.h>
-#include <pmm.h>
-#include <vmm.h>
+#include <mm.h>
 #include <kernel.h>
 
 
 
 
-pmm_t pmm;
+
+
+
+static bitmap_t bmp;
 
 
 
 
 
+static bool pmm_is_bit_set(uint64_t idx) {
+    return (bmp.bitmap[idx / BITS_PER_BYTE] & (1 << (idx % BITS_PER_BYTE))) != 0;
+}
 
+static void pmm_set_bit(uint64_t idx) {
+    bmp.bitmap[idx / BITS_PER_BYTE] |= (1 << (idx % BITS_PER_BYTE));
+}
 
+static void pmm_clear_bit(uint64_t idx) {
+    bmp.bitmap[idx / BITS_PER_BYTE] &= ~(1 << (idx % BITS_PER_BYTE));
+}
 
-
-
-void pmm_init(struct limine_memmap_entry **mm, uint64_t mm_count) {
-    uint64_t highest_addr = 0;
-
-    assert(mm != NULL && mm_count > 0);
-
-    spinlock_init(&pmm.s);
-
-    pmm.hhdm = VMM_VIRT_BASE;
-
-    for (uint64_t i = 0; i < mm_count; i++) {
-        struct limine_memmap_entry *e = mm[i];
-
-        uint64_t base = e->base;
-        uint64_t length = e->length;
-
-        if (e->type == LIMINE_MEMMAP_USABLE || e->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || e->type == LIMINE_MEMMAP_KERNEL_AND_MODULES) {
-            uint64_t top = base + length;
-
-            if (top > highest_addr) {
-                highest_addr = top;
-            }
+static uint64_t pmm_find_first_free(void) {
+    for (uint64_t i = 0; i < bmp.total_pages; i++) {
+        if (!pmm_is_bit_set(i)) {
+            return i;
         }
     }
 
-    pmm.free_pages = (highest_addr + PAGE_SIZE - 1) / PAGE_SIZE;
-    pmm.bitmap_size = ALIGN_UP(pmm.free_pages / 8, PAGE_SIZE);
+    return -1;
+}
 
-    for (uint64_t i = 0; i < mm_count; i++) {
-        struct limine_memmap_entry *e = mm[i];
+void pmm_init(struct limine_memmap_response *m) {
+    struct limine_memmap_entry *e = NULL;
+
+    spinlock_init(&bmp.s);
+
+
+    for (uint64_t i = 0; i < m->entry_count; i++) {
+        e = m->entries[i];
 
         if (e->type != LIMINE_MEMMAP_USABLE) {
+            // We only want usable physical memory
             continue;
         }
 
-        pmm.bitmap = (uint8_t *)(pmm.hhdm + e->base);
-
-        memset((uint8_t *)pmm.bitmap, 0xFF, pmm.bitmap_size);
-
-        e->base += pmm.bitmap_size;
-        e->length -= pmm.bitmap_size;
-        break;
-    }
-
-    for (uint64_t i = 0; i < mm_count; i++) {
-        struct limine_memmap_entry *e = mm[i];
-
-        uint32_t type = e->type;
-        uint64_t base = e->base;
-        uint64_t length = e->length;
-
-        if (type == LIMINE_MEMMAP_USABLE) {
-            for (uint64_t j = 0; j < length; j += PAGE_SIZE) {
-                pmm.free_pages++;
-                pmm.bitmap[(base + j) / PAGE_SIZE / 8] &= ~(1UL << ((base + j) % 8));
-            }
+        if (bmp.phys_start == 0) {
+            bmp.phys_start = e->base;
         }
+
+        bmp.phys_size += e->length;
     }
 
-    pmm.bitmap_base = (uint64_t)pmm.bitmap;
-    pmm.bitmap_end = pmm.bitmap_base + pmm.bitmap_size;
+    bmp.phys_end = bmp.phys_start + bmp.phys_size;
 
-    pmm.used_pages += SIZE_TO_PAGES(pmm.bitmap_size, PAGE_SIZE);
-    pmm.free_pages -= SIZE_TO_PAGES(pmm.bitmap_size, PAGE_SIZE);
+    bmp.total_pages = bmp.phys_size / PAGE_SIZE;
 
-    printf("PMM: Bitmap region: [0x%lx - 0x%lx] length: %lluKB\n", pmm.bitmap_base, pmm.bitmap_end, pmm.bitmap_size / 1024);
-    printf("PMM: Free pages: %llu used pages: %llu\n", pmm.free_pages, pmm.used_pages);
+    bmp.bitmap_size = (bmp.total_pages + BITS_PER_BYTE - 1) / BITS_PER_BYTE;    
+    bmp.bitmap = (uint8_t *)PHYS_TO_VIRT((uint64_t)bmp.phys_start);
+    bmp.bitmap_base = (uint64_t)bmp.bitmap;
+    bmp.bitmap_end  = bmp.bitmap_base + bmp.bitmap_size;
+
+    bmp.reserved_pages = SIZE_TO_PAGES(bmp.bitmap_size, PAGE_SIZE);
+
+    // Initialize bitmap
+    memset(bmp.bitmap, 0, bmp.bitmap_size);
+
+    for (size_t i = 0; i < bmp.reserved_pages; i++) {
+        pmm_set_bit(i);
+        bmp.used_pages++;
+    }
+
+    printf("PMM: Available memory region: 0x%lx - 0x%lx length: %lluGB\n", bmp.phys_start, bmp.phys_end, bmp.phys_size / 1024 / 1024 / 1024);    
+    printf("PMM: Bitmap: 0x%lx - 0x%lx length: %lluKB\n", VIRT_TO_PHYS(bmp.bitmap_base), VIRT_TO_PHYS(bmp.bitmap_end), bmp.bitmap_size / 1024);
+    printf("PMM: Total pages: %llu used pages: %llu reserved pages: %llu\n", bmp.total_pages, bmp.used_pages, bmp.reserved_pages);
 }
 
-static void *pmm_internal_alloc(uint64_t page_count) {
-    uint64_t last_used = pmm.last_used_idx;
-    uint64_t ret = 0;
-
-    spinlock_acquire(&pmm.s);
-
-    for (uint64_t i = pmm.last_used_idx; i < pmm.free_pages; i++) {
-        if (!(pmm.bitmap[i / 8] & (1UL << (i % 8)))) {
-            pmm.last_used_idx++;
-            ret++;
-
-            if (ret == page_count) {
-                uint64_t page = pmm.last_used_idx - page_count;
-
-                for (uint64_t j = page; j < pmm.last_used_idx; j++) {
-                    pmm.bitmap[j / 8] |= (1UL << (j % 8));
-                }
-
-                spinlock_release(&pmm.s);
-                return (void *)(page * PAGE_SIZE);
-            }
-        } else {
-            pmm.last_used_idx++;
-            ret = 0;
-        }
-    }
-
-    pmm.last_used_idx = 0;
-
-    for (uint64_t i = pmm.last_used_idx; i < last_used; i++) {
-        if (!(pmm.bitmap[i / 8] & (1UL << (i % 8)))) {
-            pmm.last_used_idx++;
-            ret++;
-
-            if (ret == page_count) {
-                uint64_t page = pmm.last_used_idx - page_count;
-
-                for (uint64_t j = page; j < pmm.last_used_idx; j++) {
-                    pmm.bitmap[j / 8] |= (1UL << (j % 8));
-                }
-
-                spinlock_release(&pmm.s);
-                return (void *)(page * PAGE_SIZE);
-            }
-        } else {
-            pmm.last_used_idx++;
-            ret = 0;
-        }
-    }
-
-    pmm.used_pages += page_count;
-    pmm.free_pages -= page_count;
-
-    spinlock_release(&pmm.s);
-    return NULL;
+uint64_t pmm_get_bitmap_base(void) {
+    return bmp.bitmap_base;
 }
 
-void *pmm_alloc(uint64_t page_count) {
+size_t pmm_get_bitmap_size(void) {
+    return bmp.bitmap_size;
+}
+
+void *pmm_alloc(void) {
     void *ptr = NULL;
+    uint64_t idx = pmm_find_first_free();
+    uint64_t bmp_end = bmp.bitmap_base + bmp.bitmap_size;
 
-    assert(page_count < pmm.free_pages);
+    spinlock_acquire(&bmp.s);
 
-    ptr = pmm_internal_alloc(page_count);
-    if (!ptr) {
-        printf("PMM: Out of memory!\n");
-    }
+    assert(idx < bmp.total_pages || idx != (uint64_t)-1);
 
-    memset((pmm.hhdm + ptr), 0, page_count * PAGE_SIZE);
+    // Ensure next allocated frame is aligned on PAGE_SIZE boundaries
+    uint64_t page_addr = bmp_end + (idx * PAGE_SIZE);
+    page_addr = ALIGN_UP(page_addr, PAGE_SIZE);
+
+    ptr = (void *)page_addr;
+
+    pmm_set_bit(idx);
+    bmp.used_pages++;
+
+    spinlock_release(&bmp.s);
+
     return ptr;
 }
 
-void pmm_free(void *ptr, uint64_t page_count) {
-    uint64_t page = (uint64_t)ptr / PAGE_SIZE;
+void pmm_free(void *ptr) {
+    uint64_t aligned_ptr = (uint64_t)ptr;
+    uint64_t orig_ptr = 0;
 
-    spinlock_acquire(&pmm.s);
+    spinlock_acquire(&bmp.s);
 
-    for (uint64_t i = page; i < page + page_count; i++) {
-        pmm.bitmap[i / 8] &= ~(1UL << (i % 8));
-    }
+    orig_ptr = aligned_ptr - (aligned_ptr % PAGE_SIZE);
 
-    pmm.free_pages += page_count;
-    pmm.used_pages -= page_count;
+    uint64_t idx = ((uint64_t)orig_ptr - bmp.bitmap_base) / PAGE_SIZE;
+    assert(idx <= bmp.total_pages);
 
-    spinlock_release(&pmm.s);
+    pmm_clear_bit(idx);
+    bmp.used_pages--;
+
+    spinlock_release(&bmp.s);
 }

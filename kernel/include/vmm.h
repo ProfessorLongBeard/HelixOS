@@ -113,7 +113,7 @@ typedef struct {
 
 
 
-void vmm_init(uint64_t kernel_phys, uint64_t kernel_virt, struct limine_memmap_entry **mm, uint64_t mm_count);
+void vmm_init(uint64_t kernel_phys, uint64_t kernel_virt, struct limine_memmap_response *m);
 void vmm_inval_page(uint64_t addr);
 void vmm_inval_all(void);
 void vmm_switch_pagemap(page_table_t *table);
@@ -127,5 +127,6 @@ void vmm_map_range(page_table_t *table, uint64_t virt_start, uint64_t virt_end, 
 void vmm_unmap(page_table_t *table, uint64_t virt, uint64_t phys);
 void vmm_unmap_range(page_table_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys_start);
 page_table_t *vmm_get_table(page_table_t *table, uint64_t idx);
+page_table_t *vmm_get_pgd(void);
 
 #endif
