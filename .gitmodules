@@ -11,6 +11,3 @@
 	path = external/limine
 	url = https://github.com/limine-bootloader/limine.git
 	branch = v9.x-binary
-[submodule "external/mlibc"]
-	path = external/mlibc
-	url = https://github.com/ProfessorLongBeard/mlibc.git
