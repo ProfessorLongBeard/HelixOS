@@ -11,14 +11,10 @@
 void *kmalloc(size_t length) {
     void *ptr = NULL;
 
-    if (length <= PAGE_SIZE) {
-        ptr = slab_alloc(length);
-        assert(ptr != NULL);
+    ptr = slab_alloc(length);
+    assert(ptr != NULL);
 
-        return ptr;
-    }
-
-    return NULL;
+    return ptr;
 }
 
 void *kcalloc(size_t length) {
