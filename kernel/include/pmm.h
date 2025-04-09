@@ -34,5 +34,7 @@ typedef struct {
 void pmm_init(struct limine_memmap_response *m);
 void *pmm_alloc(void);
 void pmm_free(void *ptr);
+void *pmm_alloc_pages(size_t page_count);
+void pmm_free_pages(void *ptr, size_t page_count);
 
 #endif

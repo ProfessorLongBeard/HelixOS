@@ -93,11 +93,14 @@ size_t pmm_get_bitmap_size(void) {
 
 void *pmm_alloc(void) {
     void *ptr = NULL;
-    uint64_t idx = pmm_find_first_free();
+    uint64_t idx = 0;
     uint64_t bmp_end = bmp.bitmap_base + bmp.bitmap_size;
+
+
 
     spinlock_acquire(&bmp.s);
 
+    idx = pmm_find_first_free();
     assert(idx < bmp.total_pages || idx != (uint64_t)-1);
 
     // Ensure next allocated frame is aligned on PAGE_SIZE boundaries
@@ -114,6 +117,44 @@ void *pmm_alloc(void) {
     return ptr;
 }
 
+void *pmm_alloc_pages(size_t page_count) {
+    void *ptr = NULL;
+    uint64_t idx = 0;
+    uint64_t bmp_end = bmp.bitmap_base + bmp.bitmap_size;
+
+
+
+    spinlock_acquire(&bmp.s);
+
+    for (uint64_t i = 0; i <= bmp.total_pages - page_count; i++) {
+        bool found = true;
+
+        for (size_t j = 0; j < page_count; j++) {
+            if (pmm_is_bit_set(i + j)) {
+                found = false;
+                i += j;
+                break;
+            }
+        }
+
+        if (found) {
+            for (size_t j = 0; j < page_count; j++) {
+                pmm_set_bit(i + j);
+                bmp.used_pages++;
+            }
+
+            uint64_t page_addr = bmp_end + (i * PAGE_SIZE);
+            page_addr = ALIGN_UP(page_addr, PAGE_SIZE);
+
+            spinlock_release(&bmp.s);
+            return (void *)page_addr;
+        }
+    }
+
+    spinlock_release(&bmp.s);
+    return NULL;
+}
+
 void pmm_free(void *ptr) {
     uint64_t aligned_ptr = (uint64_t)ptr;
     uint64_t orig_ptr = 0;
@@ -127,6 +168,16 @@ void pmm_free(void *ptr) {
 
     pmm_clear_bit(idx);
     bmp.used_pages--;
+
+    spinlock_release(&bmp.s);
+}
+
+void pmm_free_pages(void *ptr, size_t page_count) {
+    assert(ptr != NULL);
+
+    spinlock_acquire(&bmp.s);
+
+
 
     spinlock_release(&bmp.s);
 }
