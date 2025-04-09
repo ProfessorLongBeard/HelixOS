@@ -9,8 +9,8 @@
 
 
 #define SLAB_MIN_SIZE   8
-#define SLAB_MAX_SIZE   4096
-#define SLAB_COUNT      20
+#define SLAB_MAX_SIZE   8192
+#define SLAB_COUNT      80
 
 
 typedef struct slab {

@@ -77,20 +77,34 @@ static size_t slab_get_order(size_t length) {
 
 void slab_init(void) {
     void *ptr = NULL;
+    slab_t *slab = NULL;
     size_t length = SLAB_MIN_SIZE;
     size_t order_count = SLAB_MIN_SIZE;
+    size_t num_pages = 0;
+
+
 
     spinlock_init(&s);
 
     for (size_t i = 0; i < SLAB_COUNT && order_count <= SLAB_MAX_SIZE; i++) {
         slab_cache_t *cache = slab_cache_for_each(i);
 
-        slab_t *slab = pmm_alloc();
-        assert(slab != NULL);
+        num_pages = SIZE_TO_PAGES(length, PAGE_SIZE);
 
-        slab->num_objects = PAGE_SIZE / length;
+        if (num_pages > 1) {
+            slab = pmm_alloc_pages(num_pages);
+            assert(slab != NULL);
+
+            slab->num_objects = (num_pages * PAGE_SIZE) / PAGE_SIZE;
+        } else {
+            slab = pmm_alloc();
+            assert(slab != NULL);
+
+            slab->num_objects = PAGE_SIZE / length;
+        }
+
         slab->free_objects = slab->num_objects;
-        slab->object_size = length;    
+        slab->object_size = length;
         ptr = (void *)(slab + 1);
 
         for (size_t i = 0; i < slab->num_objects - 1; i++) {
@@ -115,18 +129,24 @@ void slab_init(void) {
 
 static slab_t *slab_create_new(size_t length) {
     void *ptr = NULL;
-    slab_t *new_slab = pmm_alloc();
+    slab_t *new_slab = NULL;
     size_t order = SLAB_MIN_SIZE;
-    slab_cache_t *cache = NULL;
+    size_t num_pages = 0;
 
 
 
-    assert(new_slab != NULL);
 
-    cache = slab_cache_for_each(order);
-    assert(cache != NULL);
+    num_pages = SIZE_TO_PAGES(length, PAGE_SIZE);
 
-    new_slab->num_objects = PAGE_SIZE / length;
+    if (num_pages > 1) {
+        new_slab = pmm_alloc_pages(num_pages);
+        assert(new_slab != NULL);
+
+        new_slab->num_objects = (num_pages * PAGE_SIZE) / PAGE_SIZE;
+    } else {
+        new_slab->num_objects = PAGE_SIZE / length;
+    }
+
     new_slab->free_objects = new_slab->num_objects;
     new_slab->object_size = length;
     new_slab->next = NULL;
@@ -148,7 +168,6 @@ static void *slab_get_obj(slab_t *slab, size_t length) {
     slab_t *curr = slab;
 
     assert(curr != NULL);
-    assert(length > 0 && length <= PAGE_SIZE);
 
     if (curr->free_objects == 0) {
         printf("No available slab objects in region: 0x%lx!\n", (uintptr_t)slab);
@@ -242,7 +261,6 @@ void *slab_alloc(size_t length) {
     slab_t *slab = NULL;
 
 
-    assert(length <= PAGE_SIZE && length > 0);
 
     spinlock_acquire(&s);
 
@@ -307,7 +325,6 @@ void slab_free(void *obj, size_t length) {
     size_t order = 0;
 
     assert(obj != NULL);
-    assert(length <= PAGE_SIZE || length > 0);
 
     spinlock_acquire(&s);
 
