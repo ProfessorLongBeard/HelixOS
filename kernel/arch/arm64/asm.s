@@ -284,6 +284,12 @@ __flush_cache_range:
     ret
 
 
+.global __mb
+__mb:
+    // memory barrier
+    dsb sy
+    ret
+
 
 
 .global __hcf

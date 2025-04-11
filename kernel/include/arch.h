@@ -168,4 +168,6 @@ extern int __icc_hppir_read(void);
 
 extern void __hcf(void);
 
+extern void __mb(void);
+
 #endif
