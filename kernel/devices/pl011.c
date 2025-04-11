@@ -8,7 +8,7 @@
 
 
 
-uart_t *pl011 = (uart_t *)UART_BASE;
+static volatile uart_t *pl011 = (uart_t *)UART_BASE;
 
 
 
