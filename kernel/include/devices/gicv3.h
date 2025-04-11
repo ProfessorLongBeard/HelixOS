@@ -8,7 +8,7 @@
 
 
 
-#define MAX_IRQ_ID  256
+#define MAX_IRQ_ID  1024
 
 #define GIC_DIST_BASE       (VMM_VIRT_BASE + 0x08000000)
 #define GIC_CPU_BASE        (VMM_VIRT_BASE + 0x08010000)
