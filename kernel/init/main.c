@@ -3,12 +3,15 @@
 #include <stdbool.h>
 #include <framebuffer.h>
 #include <kstdlib.h>
-#include <pmm.h>
-#include <vmm.h>
+#include <mm.h>
 #include <arch.h>
 #include <devices/timer.h>
 #include <devices/gicv3.h>
 #include <devices/pl011.h>
+#include <devices/virtio/virtio.h>
+
+
+
 
 
 
@@ -55,11 +58,15 @@ void helix_init(void) {
         fb_init(fb);
     }
 
-    pmm_init(m->entries, m->entry_count);
-    vmm_init(kr->physical_base, kr->virtual_base, m->entries, m->entry_count);
+    pmm_init(m);
+    vmm_init(kr->physical_base, kr->virtual_base, m);
+    slab_init();
     gic_init();
     timer_init();
     uart_init();
+    virtio_init();
+
+    virtio_test();
 
     __hcf();
 }
