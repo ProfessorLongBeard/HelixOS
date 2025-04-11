@@ -30,7 +30,6 @@ ${QEMU} \
     -drive if=pflash,file=${EFI_ROM},format=raw,readonly=on \
     -drive if=pflash,file=${EFI_VARS},format=raw,readonly=off \
     -drive if=none,file=${HDD_IMG},format=raw,id=vda1 \
-    -drive if=none,file=${HDD_IMG},format=raw,id=vda1 \
     -device virtio-blk-device,drive=vda1,bus=virtio-mmio-bus.0 \
     -global virtio-mmio.force-legacy=false \
     -usb \
