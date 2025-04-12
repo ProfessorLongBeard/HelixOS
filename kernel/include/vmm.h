@@ -98,7 +98,7 @@
 #define PTE_IDX(virt) (((virt) >> L3_SHIFT) & 0x1FF)
 
 typedef struct {
-    uint64_t entries[PT_ENTRY_SIZE];
+    uintptr_t entries[PT_ENTRY_SIZE];
 } __attribute__((aligned(PAGE_SIZE), packed)) page_table_t;
 
 
@@ -113,20 +113,20 @@ typedef struct {
 
 
 
-void vmm_init(uint64_t kernel_phys, uint64_t kernel_virt, struct limine_memmap_response *m);
-void vmm_inval_page(uint64_t addr);
+void vmm_init(uintptr_t kernel_phys, uintptr_t kernel_virt, struct limine_memmap_response *m);
+void vmm_inval_page(uintptr_t addr);
 void vmm_inval_all(void);
 void vmm_switch_pagemap(page_table_t *table);
-void vmm_flush_dcache_addr(uint64_t addr);
-void vmm_flush_icache_addr(uint64_t addr);
-void vmm_flush_cache_range(uint64_t virt_start, uint64_t virt_end);
+void vmm_flush_dcache_addr(uintptr_t addr);
+void vmm_flush_icache_addr(uintptr_t addr);
+void vmm_flush_cache_range(uintptr_t virt_start, uintptr_t virt_end);
 page_table_t *vmm_pt_alloc(void);
 void vmm_pt_dealloc(page_table_t *table);
-void vmm_map(page_table_t *table, uint64_t virt, uint64_t phys, uint64_t flags);
-void vmm_map_range(page_table_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys, uint64_t flags);
-void vmm_unmap(page_table_t *table, uint64_t virt, uint64_t phys);
-void vmm_unmap_range(page_table_t *table, uint64_t virt_start, uint64_t virt_end, uint64_t phys_start);
-page_table_t *vmm_get_table(page_table_t *table, uint64_t idx);
+void vmm_map(page_table_t *table, uintptr_t virt, uintptr_t phys, uint64_t flags);
+void vmm_map_range(page_table_t *table, uintptr_t virt_start, uintptr_t virt_end, uintptr_t phys, uint64_t flags);
+void vmm_unmap(page_table_t *table, uintptr_t virt, uintptr_t phys);
+void vmm_unmap_range(page_table_t *table, uintptr_t virt_start, uintptr_t virt_end, uintptr_t phys_start);
+page_table_t *vmm_get_table(page_table_t *table, uintptr_t idx);
 page_table_t *vmm_get_pgd(void);
 
 #endif
