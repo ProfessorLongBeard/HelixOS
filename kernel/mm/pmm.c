@@ -156,8 +156,8 @@ void *pmm_alloc_pages(size_t page_count) {
 }
 
 void pmm_free(void *ptr) {
-    uint64_t aligned_ptr = (uint64_t)ptr;
-    uint64_t orig_ptr = 0;
+    uintptr_t aligned_ptr = (uintptr_t)ptr;
+    uintptr_t orig_ptr = 0;
 
     spinlock_acquire(&bmp.s);
 
@@ -174,10 +174,22 @@ void pmm_free(void *ptr) {
 
 void pmm_free_pages(void *ptr, size_t page_count) {
     assert(ptr != NULL);
+    uintptr_t aligned_ptr = (uintptr_t)ptr;
+    uintptr_t orig_ptr = 0;
+    uint64_t idx = 0;
+
+
 
     spinlock_acquire(&bmp.s);
 
+    orig_ptr = aligned_ptr - (aligned_ptr % PAGE_SIZE);
 
+    idx = (orig_ptr  - (bmp.bitmap_size + bmp.bitmap_size)) / PAGE_SIZE;
+
+    for (size_t i = 0; i < page_count; i++) {
+        pmm_clear_bit(idx + i);
+        bmp.used_pages--;
+    }
 
     spinlock_release(&bmp.s);
 }
