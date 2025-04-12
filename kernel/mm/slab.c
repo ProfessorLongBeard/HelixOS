@@ -1,44 +1,7 @@
 #include <kstdio.h>
 #include <kstdlib.h>
 #include <mm.h>
-
-
-
-
-/*
- * Slab allocation method:
- * - Find first free object from slab_t in slab_cache
- * - Take a free object from the freelist
- * - Update the freelist pointer
- * - Decrement the freelist object count and return the allocated
- */
-
- /*
-  * Slab allocation:
-  * - Start at the proper slab based on the cache size
-  * - Walk the slab list to look for free objects; If found, return and object for it
-  *
-  * If none are found:
-  * - Request a new slab (pmm_alloc)
-  * - Initialize the freelist
-  * - add it to the slab cache
-  * - Return first free object
-  */
-
-/*
- * Slab order count in powers of two
- * 8 bytes
- * 16 bytes
- * 32 bytes
- * 64 bytes
- * 128 bytes
- * 256 bytes
- * 512 bytes
- * 1024 bytes
- * 2048 bytes
- * 4096 bytes
- */
-
+#include <spinlock.h>
 
 
 
@@ -51,318 +14,237 @@ static slab_cache_t slab_cache[SLAB_COUNT];
 
 
 
-
-
-static slab_cache_t *slab_cache_for_each(size_t slab_order) {
+static slab_cache_t *slab_cache_for_each(int slab_order) {
     slab_cache_t *cache = NULL;
 
+    assert(slab_order >= 0 || slab_order <= SLAB_COUNT);
+
     cache = &slab_cache[slab_order];
-    assert(cache != NULL);
 
     return cache;
 }
 
-static size_t slab_get_order(size_t length) {
-    size_t order = 0, order_aligned = 0;
+static int slab_get_order(size_t length) {
+    int order = 0;
+    size_t s = SLAB_MIN_SIZE;
 
-    order_aligned = ALIGN_UP(length, PAGE_SIZE);
-
-    while(order_aligned > SLAB_MIN_SIZE) {
-        order_aligned >>= 1;
+    while(s <= length && order <= SLAB_COUNT - 1) {
+        s <<= 1;
         order++;
     }
 
     return order;
 }
 
+static size_t slab_get_size(size_t length) {
+    size_t slab_size = SLAB_MIN_SIZE;
+
+    // Get first-fit/best-git length from a given alloction request
+
+    while(slab_size <= length) {
+        slab_size <<= 1;
+    }
+
+    return slab_size;
+}
+
 void slab_init(void) {
     void *ptr = NULL;
     slab_t *slab = NULL;
-    size_t length = SLAB_MIN_SIZE;
-    size_t order_count = SLAB_MIN_SIZE;
-    size_t num_pages = 0;
+    size_t slab_size = SLAB_MIN_SIZE;
+    size_t page_count = 0, slab_bytes = 0, usable = 0;
 
 
 
     spinlock_init(&s);
 
-    for (size_t i = 0; i < SLAB_COUNT && order_count <= SLAB_MAX_SIZE; i++) {
+    for (int i = 0; i < SLAB_COUNT && slab_size <= SLAB_MAX_SIZE; i++) {
         slab_cache_t *cache = slab_cache_for_each(i);
 
-        num_pages = SIZE_TO_PAGES(length, PAGE_SIZE);
+        page_count = SIZE_TO_PAGES(slab_size, PAGE_SIZE);
 
-        if (num_pages > 1) {
-            slab = pmm_alloc_pages(num_pages);
-            assert(slab != NULL);
+        slab = (page_count == 1) ? pmm_alloc() : pmm_alloc_pages(page_count);
+        assert(slab != NULL);
 
-            slab->num_objects = (num_pages * PAGE_SIZE) / PAGE_SIZE;
-        } else {
-            slab = pmm_alloc();
-            assert(slab != NULL);
+        uintptr_t base = (uintptr_t)slab + sizeof *slab;
+        uintptr_t base_aligned = (base + slab_size - 1) & ~(slab_size - 1);
 
-            slab->num_objects = PAGE_SIZE / length;
-        }
+        slab_bytes = page_count * PAGE_SIZE;
+        usable = slab_bytes - (base_aligned - (uintptr_t)slab);
 
-        slab->free_objects = slab->num_objects;
-        slab->object_size = length;
-        ptr = (void *)(slab + 1);
+        slab->total_objects = usable / slab_size;
+        slab->free_objects = slab->total_objects;
+        slab->used_objects = 0;
+        slab->object_size = slab_size;
+        slab->next = NULL;
 
-        for (size_t i = 0; i < slab->num_objects - 1; i++) {
-            *(void **)ptr = slab->data;
-            slab->data = ptr;
+        ptr = (void *)base_aligned;
+        
+        for (uint64_t i = 0; i < slab->total_objects; i++) {
+            *(void **)ptr = slab->free_list;
+            slab->free_list = ptr;
             ptr = (void *)((uint8_t *)ptr + slab->object_size);
         }
 
         slab->next = cache->slab_list;
-        cache->num_objects = slab->num_objects;
+        cache->object_count = slab->total_objects;
         cache->slab_list = slab;
 
-        // Increment to next power of two
-        length += SLAB_MIN_SIZE;
-
-        // Increase slab order count
-        order_count <<= 1;
+        slab_size <<= 1;
     }
 
     printf("SLAB: Initialized!\n");
 }
 
-static slab_t *slab_create_new(size_t length) {
+static slab_t *slab_create_new(slab_t *old_slab, size_t length) {
     void *ptr = NULL;
+    size_t page_count = 0, slab_bytes = 0, usable = 0;
     slab_t *new_slab = NULL;
-    size_t order = SLAB_MIN_SIZE;
-    size_t num_pages = 0;
+    size_t slab_size = 0;
 
 
 
+    assert(length <= SLAB_MAX_SIZE);
 
-    num_pages = SIZE_TO_PAGES(length, PAGE_SIZE);
+    page_count = SIZE_TO_PAGES(length, PAGE_SIZE);
 
-    if (num_pages > 1) {
-        new_slab = pmm_alloc_pages(num_pages);
-        assert(new_slab != NULL);
+    // Get next power of 2 length for allocation request
+    slab_size = slab_get_size(length);
 
-        new_slab->num_objects = (num_pages * PAGE_SIZE) / PAGE_SIZE;
-    } else {
-        new_slab->num_objects = PAGE_SIZE / length;
-    }
+    new_slab = (page_count == 1) ? pmm_alloc() : pmm_alloc_pages(page_count);
+    assert(new_slab != NULL);
 
-    new_slab->free_objects = new_slab->num_objects;
-    new_slab->object_size = length;
+    uintptr_t base = (uintptr_t)new_slab + sizeof *new_slab;
+    uintptr_t base_aligned = (base + slab_size- 1) & ~(slab_size - 1);
+
+    slab_bytes = page_count * PAGE_SIZE;
+    usable = slab_bytes - (base_aligned - (uintptr_t)new_slab);
+
+    new_slab->total_objects = usable / slab_size;
+    new_slab->free_objects = new_slab->total_objects;
+    new_slab->used_objects = 0;
+    new_slab->object_size = slab_size;
     new_slab->next = NULL;
 
-    ptr = (void *)(new_slab + 1);
-    assert(ptr != NULL);
-
-    for (size_t i = 0; i < new_slab->num_objects - 1; i++) {
-        *(void **)ptr = new_slab->data;
-        new_slab->data = ptr;
+    ptr = (void *)base_aligned;
+    
+    for (uint64_t i = 0; i < new_slab->total_objects; i++) {
+        *(void **)ptr = new_slab->free_list;
+        new_slab->free_list = ptr;
         ptr = (void *)((uint8_t *)ptr + new_slab->object_size);
     }
 
     return new_slab;
 }
 
-static void *slab_get_obj(slab_t *slab, size_t length) {
+static void *slab_get_object(slab_t *slab, size_t length) {
     void *ptr = NULL;
-    slab_t *curr = slab;
 
-    assert(curr != NULL);
+    assert(slab != NULL);
+    assert(length <= SLAB_MAX_SIZE);
 
-    if (curr->free_objects == 0) {
-        printf("No available slab objects in region: 0x%lx!\n", (uintptr_t)slab);
+    if (slab->free_objects == 0 || slab->used_objects == slab->total_objects) {
+        printf("SLAB: No available object in slab: 0x%lx\n", (uintptr_t)slab);
         return NULL;
     }
 
-    assert(length == curr->object_size);
-
-    ptr = (void *)slab->data;
-    assert(ptr != NULL);
-
-    slab->data = *(void **)ptr;
+    assert(slab->free_list != NULL);
+    ptr = (void *)slab->free_list;
+    slab->free_list = *(void **)ptr;
 
     slab->free_objects--;
+    slab->used_objects++;
+    
     return ptr;
-}
-
-static slab_t *slab_find_first_free(size_t length) {
-    size_t order = slab_get_order(length);
-    slab_t *slab = NULL;
-    slab_cache_t *cache = NULL;
-
-
-    cache = slab_cache_for_each(order);
-    assert(cache != NULL);
-
-    slab = cache->slab_list;
-    assert(slab != NULL);
-
-    while(slab) {
-        if (slab->free_objects > 0 && slab->object_size == length) {
-            return slab;
-        }
-
-        slab = slab->next;
-    }
-
-    return NULL;
-}
-
-static slab_t *slab_get_next(slab_t *slab) {
-    slab_t *head = slab;
-    assert(head != NULL);
-
-    if (head->next != NULL) {
-        head = head->next;
-    }
-
-    return head;
-}
-
-static slab_t *slab_get_end(slab_t *slab) {
-    slab_t *head = slab;
-
-    assert(head != NULL);
-
-    while(head->next != NULL) {
-        head = head->next;
-    }
-
-    return head;
-}
-
-static void slab_link_to_cache(slab_t *new_slab) {
-    slab_t *slab = NULL;
-    slab_cache_t *cache = NULL;
-    size_t order = 0;
-    
-    
-    assert(new_slab != NULL);
-    
-    order = slab_get_order(new_slab->object_size);
-    cache = slab_cache_for_each(order);
-    assert(cache != NULL);
-
-    if (cache->slab_list == NULL) {
-        cache->slab_list = new_slab;
-    } else {
-        slab_t *next = slab_get_end(cache->slab_list);
-        assert(next != NULL);
-
-        next->next = new_slab;
-    }
-
-    cache->num_objects++;
 }
 
 void *slab_alloc(size_t length) {
     void *ptr = NULL;
-    size_t order = 0;
     slab_t *slab = NULL;
+    slab_cache_t *cache = NULL;
+    int slab_order = 0;
 
 
+
+    assert(length <= SLAB_MAX_SIZE);
 
     spinlock_acquire(&s);
 
-    slab = slab_find_first_free(length);
-    
-    if (!slab) {
-        slab = slab_create_new(length);
-        assert(slab != NULL);
-
-        slab_link_to_cache(slab);
-
-        ptr = slab_get_obj(slab, length);
-        
-        spinlock_release(&s);
-        return ptr;
+    if (length < SLAB_MIN_SIZE) {
+        length = SLAB_MIN_SIZE;
     }
 
-    ptr = slab_get_obj(slab, length);
-    assert(ptr != NULL);
+    slab_order = slab_get_order(length);
+    assert(slab_order <= SLAB_COUNT);
 
-    spinlock_release(&s);
-    return ptr;
-}
+    cache = slab_cache_for_each(slab_order);
+    assert(cache != NULL);
+    
+    slab = cache->slab_list;
+    assert(slab != NULL);
 
-size_t slab_find_ptr_obj_size(void *ptr) {
-    size_t order = SLAB_MIN_SIZE;
-    slab_t *slab = NULL;
-    slab_cache_t *cache = NULL;
-
-    assert(ptr != NULL);
-
-
-    for (size_t i = 0; i < SLAB_COUNT && order <= SLAB_MAX_SIZE; i++) {
-        cache = slab_cache_for_each(i);
-        assert(cache != NULL);
-
-        slab = cache->slab_list;
-        
-        while(slab != NULL) {
-            size_t slab_size = slab->num_objects * slab->object_size;
-            uintptr_t data_start = (uintptr_t)(slab + 1);
-            uintptr_t data_end = data_start + slab_size;
-
-            if ((uintptr_t)ptr >= data_start && (uintptr_t)ptr < data_end) {
-                for (uintptr_t obj = data_start; obj < data_end; obj += slab->object_size) {
-                    if ((uintptr_t)ptr == obj) {
-                        return slab->object_size;
-                    }
-                }
-            }
-
+    while(slab->next != NULL) {
+        if (slab->free_objects == 0 || slab->used_objects == slab->total_objects) {
             slab = slab->next;
         }
     }
 
-    return 0;
+    if (slab->free_objects == 0 || slab->used_objects == slab->total_objects) {
+        slab_t *new_slab = slab_create_new(slab, length);
+        assert(new_slab != NULL);
+
+        // Set new allocated slab as head in list
+        slab->next = new_slab;
+        slab = slab->next;
+    }
+
+    if (slab->used_objects < slab->total_objects && slab->object_size >= length) {
+        ptr = slab_get_object(slab, slab->object_size);
+        assert(ptr != NULL);
+
+        spinlock_release(&s);
+        return ptr;
+    }
+
+    spinlock_release(&s);
+    return NULL;
 }
 
-void slab_free(void *obj, size_t length) {
+void slab_free(void *ptr, size_t length) {
     slab_t *slab = NULL;
     slab_cache_t *cache = NULL;
-    size_t order = 0;
+    int slab_order = 0;
+    size_t slab_size = 0;
+    uintptr_t obj_start = (uintptr_t)ptr;
 
-    assert(obj != NULL);
+
+    assert(ptr != NULL);
 
     spinlock_acquire(&s);
 
-    order = slab_get_order(length);
+    slab_order = slab_get_order(length);
 
-    cache = slab_cache_for_each(order);
+    cache = slab_cache_for_each(slab_order);
     assert(cache != NULL);
 
-    assert(cache->slab_list != NULL);
+    slab_size = slab_get_size(length);
+
     slab = cache->slab_list;
+    assert(slab != NULL);
 
-    size_t slab_size = slab->num_objects * slab->object_size;
-    uintptr_t data_start = (uintptr_t)(slab + 1);
-    uintptr_t data_end = data_start + slab_size;
-
-    uintptr_t obj_start = (uintptr_t)obj;
-    uintptr_t obj_end = obj_start + length;
-
-    size_t obj_idx = (obj_start - data_start) / slab->object_size;
-    uintptr_t base = data_start + obj_idx * slab->object_size;
-
-    if (obj_start != base) {
-        printf("Failed to locate object: 0x%lx in slab!\n", (uintptr_t)obj_start);
-        
-        spinlock_release(&s);
-        return;
+    while(slab->next != NULL && slab->free_objects == 0) {
+        slab = slab->next;
     }
 
-    if (slab->data != NULL) {
-        *(void **)obj = slab->data;
+    uintptr_t freelist_start = (uintptr_t)slab + sizeof *slab;
+    uintptr_t freelist_end = freelist_start + (slab->total_objects * slab->object_size);
+
+    if (obj_start >= freelist_start && obj_start <= freelist_end) {
+        *(void **)obj_start = slab->free_list;
+        slab->free_list = (void *)obj_start;
+
         slab->free_objects++;
-    }
-
-    slab->data = obj;
-    slab->free_objects++;
-
-    if (slab->free_objects == slab->num_objects) {
-        pmm_free(slab);
+        slab->used_objects--;
     }
 
     spinlock_release(&s);
