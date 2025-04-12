@@ -29,6 +29,7 @@ target_compile_options(${KERNEL_TARGET} PRIVATE
     -ffreestanding
     -fPIC
     -mno-outline-atomics
+    -z noexecstack
 )
 
 target_link_options(${KERNEL_TARGET} PRIVATE
