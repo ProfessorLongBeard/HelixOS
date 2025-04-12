@@ -7,8 +7,6 @@
 
 
 void *kmalloc(size_t length);
-void *kcalloc(size_t length);
-void *krealloc(void *ptr, size_t length);
-void kfree(void *ptr);
+void kfree(void *ptr, size_t length);
 
 #endif

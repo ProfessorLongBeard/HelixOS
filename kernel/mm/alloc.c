@@ -10,17 +10,10 @@
 
 void *kmalloc(size_t length) {
     void *ptr = NULL;
+    size_t page_count = 0;
 
-    ptr = slab_alloc(length);
-    assert(ptr != NULL);
 
-    return ptr;
-}
-
-void *kcalloc(size_t length) {
-    void *ptr = NULL;
-
-    if (length <= PAGE_SIZE) {
+    if (length <= SLAB_MAX_SIZE) {
         ptr = slab_alloc(length);
         assert(ptr != NULL);
 
@@ -28,33 +21,19 @@ void *kcalloc(size_t length) {
         return ptr;
     }
 
-    return NULL;
-}
+    page_count = SIZE_TO_PAGES(length, PAGE_SIZE);
 
-void *krealloc(void *ptr, size_t length) {
-    // TODO: Implement slab_alloc() and handle reallocations a bit more properly...
-    void *new_ptr = NULL;
-
-    assert(ptr != NULL && length <= PAGE_SIZE);
-
-    new_ptr = slab_alloc(length);
-    assert(new_ptr != NULL);
-
-    // Copy data from ptr -> new_ptr
-    memcpy(new_ptr, ptr, length);
-
-    // Free old pointer
-    slab_free(ptr, length);
-    return new_ptr;
-}
-
-void kfree(void *ptr) {
-    size_t obj_size = 0;
-
+    // TODO: Use better allocation method(s) for larger sizes
+    ptr = pmm_alloc_pages(page_count);
     assert(ptr != NULL);
 
-    obj_size = slab_find_ptr_obj_size(ptr);
-    assert(obj_size > 0);
+    memset(ptr, 0, length);
 
-    slab_free(ptr, obj_size);
+    return ptr;
+}
+
+void kfree(void *ptr, size_t length) {
+    assert(ptr != NULL);
+
+    slab_free(ptr, length);
 }
