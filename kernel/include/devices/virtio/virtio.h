@@ -23,7 +23,6 @@
  */
 
 
-typedef struct virtio_queue_t virtio_queue_t;
 
 
 
@@ -32,7 +31,7 @@ typedef struct virtio_queue_t virtio_queue_t;
 #define VIRTIO_PCIE_PIO_BASE    (VMM_VIRT_BASE + 0x3EFF0000)
 #define VIRTIO_PCIE_ECAM_BASE   (VMM_VIRT_BASE + 0x3F000000)
 
-#define VIRTIO_IRQ_ID           16
+#define VIRTIO_IRQ_ID           48
 
 #define VIRTIO_QUEUE_SIZE       128
 
@@ -41,9 +40,6 @@ typedef struct virtio_queue_t virtio_queue_t;
 #define VIRTIO_DESC_ALIGN(qsz)  VIRTIO_ALIGN((qsz), 16)
 #define VIRTIO_AVAIL_ALIGN(qsz) VIRTIO_ALIGN((qsz), 2)
 #define VIRTIO_USED_ALIGN(qsz)  VIRTIO_ALIGN((qsz), 4)
-
-#define VIRTIO_PHYS_LOW(addr)   ((uint32_t)((addr) & 0xFFFFFFFF))
-#define VIRTIO_PHYS_HIGH(addr)  ((uint32_t)((addr) >> 32))
 
 #define VIRTIO_MAGIC            0x74726976  // "virt" string in little endian
 #define VIRTIO_VERSION_LEGACY   0x1         // v1 -> Legacy device
@@ -173,7 +169,7 @@ typedef struct {
     uint32_t    queue_used_high;
     uint32_t    __pad10[21];
     uint32_t    config_generations;
-    uint32_t    config[0];
+    uint32_t    config;
 } __attribute__((packed)) virtio_t;
 
 typedef struct {
