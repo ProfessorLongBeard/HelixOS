@@ -7,7 +7,6 @@
 
 
 
-
 /*
  * 0-23 Fearture bits for the specific device type
  * 24-37 Feature bits reserved for extentions
@@ -35,7 +34,7 @@
 
 #define VIRTIO_QUEUE_SIZE       128
 
-#define VIRTIO_ALIGN(x, align) (((x) + align) & ~align)
+#define VIRTIO_ALIGN(x, align) (((x) + (align) - 1) & ~((align) - 1))
 
 #define VIRTIO_DESC_ALIGN(qsz)  VIRTIO_ALIGN((qsz), 16)
 #define VIRTIO_AVAIL_ALIGN(qsz) VIRTIO_ALIGN((qsz), 2)
@@ -129,6 +128,8 @@ typedef struct {
 } __attribute__((packed)) virtio_used_t;
 
 typedef struct virtio_queue_t {
+    uint16_t        free_desc;
+    uint16_t        last_used;
     virtio_desc_t   desc[VIRTIO_QUEUE_SIZE];
     virtio_avail_t  avail;
     uint8_t         pad[VIRTIO_ALIGN(sizeof(virtio_avail_t), PAGE_SIZE)];
@@ -210,6 +211,13 @@ typedef struct {
     uint8_t     status;
 } virtio_blk_req_t;
 
+typedef struct {
+    virtio_queue_t      *vq;
+    virtio_blk_config_t *blk_cfg;
+} virtio_blk_dev_t;
+
+extern virtio_blk_dev_t *dev;
+
 
 
 
@@ -219,7 +227,6 @@ typedef struct {
 
 void virtio_init(void);
 void virtio_irq_handler(void);
-virtio_queue_t *virtio_queue_init(size_t queue_size);
-void virtio_test(void);
+void virtio_submit_req(uint16_t desc_index);
 
 #endif

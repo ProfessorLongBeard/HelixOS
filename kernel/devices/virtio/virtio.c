@@ -5,6 +5,7 @@
 #include <arch.h>
 #include <devices/gicv3.h>
 #include <devices/virtio/virtio.h>
+#include <devices/virtio/virtio_blk.h>
 
 
 
@@ -12,7 +13,7 @@
 
 static volatile virtio_t *v = (virtio_t *)VIRTIO_MMIO_BASE;
 
-static virtio_queue_t *vq = NULL;
+
 
 
 /*
@@ -122,9 +123,6 @@ void virtio_init(void) {
         return;
     }
 
-    vq = virtio_queue_init(VIRTIO_QUEUE_SIZE);
-    assert(vq != NULL);
-
     v->status |= VIRTIO_DEVICE_DRIVER_OK;
     __mb();
 
@@ -143,6 +141,11 @@ void virtio_init(void) {
         return;
     }
 
+    v->queue_num = VIRTIO_QUEUE_SIZE;
+    __mb();
+
+    virtio_blk_init();
+
     irq_register(VIRTIO_IRQ_ID, virtio_irq_handler);
     gic_set_irq_group_ns(VIRTIO_IRQ_ID);
     gic_set_irq_level_trigger(VIRTIO_IRQ_ID);
@@ -152,53 +155,44 @@ void virtio_init(void) {
 }
 
 void virtio_irq_handler(void) {
-    printf("VIRTIO: IRQ Handler called!\n");
+    uint16_t used_index = 0;
+
+    assert(dev != NULL);
+    assert(dev->vq != NULL);
+
+    v->interrupt_ack = v->interrupt_status;
+
+    used_index = dev->vq->used.index;
+
+    while(dev->vq->last_used != used_index) {
+        uint16_t ring_index = dev->vq->last_used % VIRTIO_QUEUE_SIZE;
+        virtio_used_elem_t *e = &dev->vq->used.ring[ring_index];
+
+        uint16_t desc_index = e->id;
+        uint32_t length = e->length;
+
+        virtio_desc_free_multiple(desc_index);
+        dev->vq->last_used++;
+    }
 }
 
-void virtio_test(void) {
-    virtio_blk_req_t *req = kmalloc(sizeof(virtio_blk_req_t));
-    assert(req != NULL);
+void virtio_submit_req(uint16_t desc_index) {
+    uint16_t ring_index = 0;
+    uintptr_t desc_phys = 0, avail_phys = 0, used_phys = 0;
 
-    uint8_t *data = kmalloc(512);
-    assert(data != NULL);
+    assert(dev != NULL);
+    assert(dev->vq != NULL);
 
-    memset(data, 0, 512);
 
-    uint8_t *st = kmalloc(1);
-    assert(st != NULL);
-    *st = 0;
 
-    uint32_t irq_status_before = v->interrupt_status;
-
-    printf("IRQ status before: 0x%lx\n", irq_status_before);
-
-    req->type = VIRTIO_BLK_T_IN;
-    req->reserved = 0;
-    req->sector = 0;
-
-    vq->desc[0].addr = VIRT_TO_PHYS((uintptr_t)req);
-    vq->desc[0].length = sizeof(virtio_blk_req_t);
-    vq->desc[0].flags = VIRTIO_DESC_F_NEXT;
-    vq->desc[0].next = 1;
-
-    vq->desc[1].addr = VIRT_TO_PHYS((uintptr_t)data);
-    vq->desc[1].length = 512;
-    vq->desc[1].flags = VIRTIO_DESC_F_WRITE | VIRTIO_DESC_F_NEXT;
-    vq->desc[1].next = 2;
-
-    vq->desc[2].addr = VIRT_TO_PHYS((uintptr_t)st);
-    vq->desc[2].length = 1;
-    vq->desc[2].flags = VIRTIO_DESC_F_WRITE;
-    vq->desc[2].next = 0;
-
-    v->queue_sel = 0;
+    v->queue_sel = desc_index;
     __mb();
 
     v->queue_num = VIRTIO_QUEUE_SIZE;
 
-    uintptr_t desc_phys = VIRT_TO_PHYS((uintptr_t)vq->desc);
-    uintptr_t avail_phys = VIRT_TO_PHYS((uintptr_t)&vq->avail);
-    uintptr_t used_phys = VIRT_TO_PHYS((uintptr_t)&vq->used);
+    desc_phys = VIRT_TO_PHYS((uintptr_t)dev->vq->desc);
+    avail_phys = VIRT_TO_PHYS((uintptr_t)&dev->vq->avail);
+    used_phys = VIRT_TO_PHYS((uintptr_t)&dev->vq->used);
 
     __mb();
     v->queue_desc_low = desc_phys;
@@ -214,26 +208,17 @@ void virtio_test(void) {
     v->queue_ready = 1;
     __mb();
 
-    vq->avail.ring[vq->avail.index % VIRTIO_QUEUE_SIZE] = 0;
+    dev->vq->avail.ring[dev->vq->avail.index % VIRTIO_QUEUE_SIZE] = desc_index;
 
-    vq->avail.flags = RING_EVENT_FLAGS_ENABLE;
-    vq->avail.event = 0;
+    dev->vq->avail.flags = RING_EVENT_FLAGS_ENABLE;
+    dev->vq->avail.event = 0;
 
-    vq->used.flags = RING_EVENT_FLAGS_ENABLE;
-    vq->used.event = 0;
+    dev->vq->used.flags = RING_EVENT_FLAGS_ENABLE;
+    dev->vq->used.event = 0;
 
     __mb();
-    vq->avail.index += 1;
+    dev->vq->avail.index += 1;
     __mb();
 
     v->queue_notify = 0;
-
-    uint64_t timeout = 100000;
-    while(timeout-- > 0);
-
-    uint32_t irq_status = v->interrupt_status;
-
-    printf("IRQ status after: 0x%lx\n", irq_status);
-
-    printf("Data: 0x%lx 0x%lx\n", data[510], data[511]);
 }

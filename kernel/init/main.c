@@ -9,6 +9,7 @@
 #include <devices/gicv3.h>
 #include <devices/pl011.h>
 #include <devices/virtio/virtio.h>
+#include <devices/virtio/virtio_blk.h>
 
 
 
@@ -65,8 +66,6 @@ void helix_init(void) {
     timer_init();
     uart_init();
     virtio_init();
-
-    virtio_test();
 
     __hcf();
 }
