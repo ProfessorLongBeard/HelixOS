@@ -57,22 +57,24 @@ uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, uint64_t length) {
 
     *status = 0xFF;
 
-    // Header request
+    // Allocate new descriptors
     desc_hdr = virtio_desc_alloc(&desc_hdr_index);
+    desc_data = virtio_desc_alloc(&desc_data_index);
+    desc_status = virtio_desc_alloc(&desc_status_index);
+
+    // Header request
     desc_hdr->addr = VIRT_TO_PHYS((uintptr_t)req);
     desc_hdr->length = sizeof(virtio_blk_req_t);
     desc_hdr->flags = VIRTIO_DESC_F_NEXT;
-    desc_hdr->next = 1;
+    desc_hdr->next = desc_data_index;
 
     // Buffer data
-    desc_data = virtio_desc_alloc(&desc_data_index);
     desc_data->addr = VIRT_TO_PHYS((uintptr_t)buf);
     desc_data->length = length;
     desc_data->flags = VIRTIO_DESC_F_WRITE | VIRTIO_DESC_F_NEXT;
-    desc_data->next = 2;
+    desc_data->next = desc_status_index;
 
     // Status
-    desc_status = virtio_desc_alloc(&desc_status_index);
     desc_status->addr = VIRT_TO_PHYS((uintptr_t)status);
     desc_status->length = 1;
     desc_status->flags = VIRTIO_DESC_F_WRITE;
@@ -135,33 +137,36 @@ uint32_t virtio_blk_write(uint8_t *buf, uint64_t sector, uint64_t length) {
 
     *status = 0;
 
-    // Header request
+    // Allocate new descriptors
     desc_hdr = virtio_desc_alloc(&desc_hdr_index);
+    desc_data = virtio_desc_alloc(&desc_data_index);
+    desc_status = virtio_desc_alloc(&desc_status_index);
+
+    // Header request
     desc_hdr->addr = VIRT_TO_PHYS((uintptr_t)req);
     desc_hdr->length = sizeof(virtio_blk_req_t);
     desc_hdr->flags = VIRTIO_DESC_F_NEXT;
-    desc_hdr->next = 1;
+    desc_hdr->next = desc_data_index;
 
     // Buffer data
-    desc_data = virtio_desc_alloc(&desc_data_index);
     desc_data->addr = VIRT_TO_PHYS((uintptr_t)buf);
     desc_data->length = length;
     desc_data->flags = VIRTIO_DESC_F_NEXT;
-    desc_data->next = 2;
+    desc_data->next = desc_status_index;
 
     // Status
-    desc_status = virtio_desc_alloc(&desc_status_index);
     desc_status->addr = VIRT_TO_PHYS((uintptr_t)status);
     desc_status->length = 1;
     desc_status->flags = VIRTIO_DESC_F_WRITE;
     desc_status->next = 0;
+
 
     virtio_submit_req(desc_hdr_index);
 
     uint32_t st = *status;
 
     if (st == VIRTIO_BLK_S_IOERR) {
-        printf("VIRTIO: Failed to read sector 0x%lx! (IO error)\n", sector);
+        printf("VIRTIO: Failed to write sector 0x%lx! (IO error)\n", sector);
 
         kfree(req, sizeof(virtio_blk_req_t));
         kfree(status, 1);
@@ -170,7 +175,7 @@ uint32_t virtio_blk_write(uint8_t *buf, uint64_t sector, uint64_t length) {
     }
 
     if (st == VIRTIO_BLK_S_UNSUPP) {
-        printf("VIRTIO: Failed to read sector 0x%lx! (unsupported)\n", sector);
+        printf("VIRTIO: Failed to write sector 0x%lx! (unsupported)\n", sector);
 
         kfree(req, sizeof(virtio_blk_req_t));
         kfree(status, 1);
@@ -226,8 +231,6 @@ virtio_desc_t *virtio_desc_alloc(uint32_t *idx) {
         return NULL;
     }
 
-    dev->vq->free_desc = dev->vq->desc[index].next;
-
     desc = &dev->vq->desc[index];
     desc->addr = 0;
     desc->length = 0;
@@ -250,6 +253,7 @@ void virtio_desc_free(uint16_t index) {
     assert(dev->vq != NULL);
 
     desc = &dev->vq->desc[index];
+    
     desc->next = dev->vq->free_desc;
     dev->vq->free_desc = index;
 }

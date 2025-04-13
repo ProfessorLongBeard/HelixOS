@@ -155,25 +155,63 @@ void virtio_init(void) {
 }
 
 void virtio_irq_handler(void) {
-    uint16_t used_index = 0;
+    virtio_queue_t *vq = NULL;
+    virtio_used_elem_t *elem = NULL;
+    virtio_blk_req_t *req = NULL;
+    uint16_t last_used = 0, used_index = 0, ring_index = 0;
+    uint16_t desc1 = 0, desc2 = 0, desc3 = 0;
+
+
+
 
     assert(dev != NULL);
     assert(dev->vq != NULL);
 
     v->interrupt_ack = v->interrupt_status;
+    vq = dev->vq;
 
-    used_index = dev->vq->used.index;
+    last_used = vq->last_used;
+    used_index = vq->used.index;
 
-    while(dev->vq->last_used != used_index) {
-        uint16_t ring_index = dev->vq->last_used % VIRTIO_QUEUE_SIZE;
-        virtio_used_elem_t *e = &dev->vq->used.ring[ring_index];
+    while(last_used != used_index) {
+        ring_index = last_used % VIRTIO_QUEUE_SIZE;
+        elem = &vq->used.ring[ring_index];
 
-        uint16_t desc_index = e->id;
-        uint32_t length = e->length;
+        desc1 = elem->id;
 
-        virtio_desc_free_multiple(desc_index);
-        dev->vq->last_used++;
+        if (!(vq->desc[desc1].flags & VIRTIO_DESC_F_NEXT)) {
+            printf("VIRTIO: Header descriptor malformed!\n");
+            
+            last_used++;
+            continue;
+        }
+
+        desc2 = vq->desc[desc1].next;
+
+        if (!(vq->desc[desc2].flags & VIRTIO_DESC_F_NEXT)) {
+            printf("VIRTIO: Data descrioptor malformed!\n");
+            
+            last_used++;
+            continue;
+        }
+
+        desc3 = vq->desc[desc2].next;
+
+        if (vq->desc[desc3].length != 1) {
+            printf("VIRTIO: Status descriptor length mismatch!\n");
+            
+            last_used++;
+            continue;
+        }
+
+        virtio_desc_free(desc1);
+        virtio_desc_free(desc2);
+        virtio_desc_free(desc3);
+
+        last_used++;
     }
+
+    vq->last_used = last_used;
 }
 
 void virtio_submit_req(uint16_t desc_index) {
