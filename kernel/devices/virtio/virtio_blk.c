@@ -2,12 +2,16 @@
 #include <kstdlib.h>
 #include <mm.h>
 #include <arch.h>
+#include <spinlock.h>
 #include <devices/virtio/virtio.h>
 #include <devices/virtio/virtio_blk.h>
 
 
 
 
+
+static spinlock_t s;
+static bool in_use = false;
 virtio_blk_dev_t *dev = NULL;
 
 
@@ -17,6 +21,8 @@ virtio_blk_dev_t *dev = NULL;
 
 
 void virtio_blk_init(void) {
+    spinlock_init(&s);
+
     dev = kmalloc(sizeof(virtio_blk_dev_t));
     assert(dev != NULL);
 
@@ -36,6 +42,8 @@ uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, uint64_t length) {
     assert(dev->vq != NULL);
     assert(buf != NULL);
 
+    spinlock_acquire(&s);
+
     req = kmalloc(sizeof(virtio_blk_req_t));
     assert(req != NULL);
 
@@ -47,7 +55,7 @@ uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, uint64_t length) {
     status = kmalloc(1);
     assert(status != NULL);
 
-    *status = 0;
+    *status = 0xFF;
 
     // Header request
     desc_hdr = virtio_desc_alloc(&desc_hdr_index);
@@ -79,6 +87,7 @@ uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, uint64_t length) {
 
         kfree(req, sizeof(virtio_blk_req_t));
         kfree(status, 1);
+        spinlock_release(&s);
         return st;
     }
 
@@ -87,15 +96,15 @@ uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, uint64_t length) {
 
         kfree(req, sizeof(virtio_blk_req_t));
         kfree(status, 1);
+        spinlock_release(&s);
         return st;
     }
 
-    if (st == VIRTIO_BLK_S_OK) {
-        printf("VIRTIO: Sucessfully read sector(s) 0x%lx, length %llu\n", sector, length);
-    }
+    printf("VIRTIO: Sucessfully read sector(s) 0x%lx, length %llu\n", sector, length);
 
     kfree(req, sizeof(virtio_blk_req_t));
     kfree(status, 1);
+    spinlock_release(&s);
     return 0;
 }
 
@@ -110,6 +119,8 @@ uint32_t virtio_blk_write(uint8_t *buf, uint64_t sector, uint64_t length) {
     assert(dev != NULL);
     assert(dev->vq != NULL);
     assert(buf != NULL);
+
+    spinlock_acquire(&s);
 
     req = kmalloc(sizeof(virtio_blk_req_t));
     assert(req != NULL);
@@ -154,6 +165,7 @@ uint32_t virtio_blk_write(uint8_t *buf, uint64_t sector, uint64_t length) {
 
         kfree(req, sizeof(virtio_blk_req_t));
         kfree(status, 1);
+        spinlock_release(&s);
         return st;
     }
 
@@ -162,15 +174,15 @@ uint32_t virtio_blk_write(uint8_t *buf, uint64_t sector, uint64_t length) {
 
         kfree(req, sizeof(virtio_blk_req_t));
         kfree(status, 1);
+        spinlock_release(&s);
         return st;
     }
 
-    if (st == VIRTIO_BLK_S_OK) {
-        printf("VIRTIO: Sucessfully wrote sector(s) 0x%lx, length %llu\n", sector, length);
-    }
+    printf("VIRTIO: Sucessfully wrote sector(s) 0x%lx, length %llu\n", sector, length);
 
     kfree(req, sizeof(virtio_blk_req_t));
     kfree(status, 1);
+    spinlock_release(&s);
     return 0;
 }
 
