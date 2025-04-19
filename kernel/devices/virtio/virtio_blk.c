@@ -55,10 +55,8 @@ uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, size_t length) {
 
     spinlock_acquire(&s);
 
-    if (length < 512) {
-        // Pad to 512 bytes
-        length = virtio_pad_bytes(length);
-    }
+    // Pad to 512 bytes
+    length = virtio_pad_bytes(length);
 
     req = kmalloc(sizeof(virtio_blk_req_t));
     assert(req != NULL);
@@ -147,10 +145,8 @@ uint32_t virtio_blk_write(uint8_t *buf, uint64_t sector, uint64_t length) {
 
     spinlock_acquire(&s);
 
-    if (length < 512) {
-        // Pad to 512 bytes
-        length = virtio_pad_bytes(length);
-    }
+    // Pad to 512 bytes
+    length = virtio_pad_bytes(length);
 
     req = kmalloc(sizeof(virtio_blk_req_t));
     assert(req != NULL);
