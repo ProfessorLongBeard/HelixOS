@@ -20,6 +20,17 @@ virtio_blk_dev_t *dev = NULL;
 
 
 
+size_t virtio_pad_bytes(size_t length) {
+    size_t pad = length % 512;
+    size_t new_length = length;
+
+    if (pad != 0) {
+        new_length += (512 - pad);
+    }
+
+    return new_length;
+}
+
 void virtio_blk_init(void) {
     spinlock_init(&s);
 
@@ -30,7 +41,7 @@ void virtio_blk_init(void) {
     assert(dev->vq != NULL);
 }
 
-uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, uint64_t length) {
+uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, size_t length) {
     uint8_t *status = NULL;
     virtio_blk_req_t *req = NULL;
     virtio_desc_t *desc_hdr = NULL, *desc_data = NULL, *desc_status = NULL;
@@ -43,6 +54,11 @@ uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, uint64_t length) {
     assert(buf != NULL);
 
     spinlock_acquire(&s);
+
+    if (length < 512) {
+        // Pad to 512 bytes
+        length = virtio_pad_bytes(length);
+    }
 
     req = kmalloc(sizeof(virtio_blk_req_t));
     assert(req != NULL);
@@ -81,6 +97,13 @@ uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, uint64_t length) {
     desc_status->next = 0;
 
     virtio_submit_req(desc_hdr_index);
+
+    while(*status == 0xFF) {
+        // Wait for disk to complete the request
+        if (*status != 0xFF) {
+            break;
+        }
+    }
 
     uint32_t st = *status;
 
@@ -124,6 +147,11 @@ uint32_t virtio_blk_write(uint8_t *buf, uint64_t sector, uint64_t length) {
 
     spinlock_acquire(&s);
 
+    if (length < 512) {
+        // Pad to 512 bytes
+        length = virtio_pad_bytes(length);
+    }
+
     req = kmalloc(sizeof(virtio_blk_req_t));
     assert(req != NULL);
 
@@ -162,6 +190,13 @@ uint32_t virtio_blk_write(uint8_t *buf, uint64_t sector, uint64_t length) {
 
 
     virtio_submit_req(desc_hdr_index);
+
+    while(*status == 0xFF) {
+        // Wait for disk to complete the request
+        if (*status != 0xFF) {
+            break;
+        }
+    }
 
     uint32_t st = *status;
 
