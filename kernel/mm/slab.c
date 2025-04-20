@@ -28,7 +28,7 @@ static int slab_get_order(size_t length) {
     int order = 0;
     size_t s = SLAB_MIN_SIZE;
 
-    while(s <= length && order <= SLAB_COUNT - 1) {
+    while(s < length && order < SLAB_COUNT - 1) {
         s <<= 1;
         order++;
     }
@@ -61,7 +61,7 @@ void slab_init(void) {
     for (int i = 0; i < SLAB_COUNT && slab_size <= SLAB_MAX_SIZE; i++) {
         slab_cache_t *cache = slab_cache_for_each(i);
 
-        page_count = SIZE_TO_PAGES(slab_size, PAGE_SIZE);
+        page_count = SIZE_TO_PAGES(slab_size + sizeof(slab_t), PAGE_SIZE);
 
         slab = (page_count == 1) ? pmm_alloc() : pmm_alloc_pages(page_count);
         assert(slab != NULL);
@@ -106,7 +106,7 @@ static slab_t *slab_create_new(slab_t *old_slab, size_t length) {
 
     assert(length <= SLAB_MAX_SIZE);
 
-    page_count = SIZE_TO_PAGES(length, PAGE_SIZE);
+    page_count = SIZE_TO_PAGES(length + sizeof(slab_t), PAGE_SIZE);
 
     // Get next power of 2 length for allocation request
     slab_size = slab_get_size(length);
@@ -184,9 +184,11 @@ void *slab_alloc(size_t length) {
     assert(slab != NULL);
 
     while(slab->next != NULL) {
-        if (slab->free_objects == 0 || slab->used_objects == slab->total_objects) {
-            slab = slab->next;
+        if (slab->free_objects > 0 && slab->object_size >= length) {
+            break;
         }
+
+        slab = slab->next;
     }
 
     if (slab->free_objects == 0 || slab->used_objects == slab->total_objects) {
