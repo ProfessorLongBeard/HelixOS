@@ -1,6 +1,7 @@
 #ifndef KSTRING_H
 #define KSTRING_H
 
+#include <stdint.h>
 #include <stddef.h>
 
 
@@ -35,5 +36,8 @@ char *strncpy(char *dst, const char *src, size_t length);
 char *strchr(const char *s, char c);
 char *strtok(char *str, const char *delim);
 char *strdup(const char *s);
+char *strrchr(const char *s, char ch);
+int memcmp(const void *s1, const void *s2, size_t length);
+void char16_to_ascii(char *dst, uint_least16_t *src, size_t length);
 
 #endif

@@ -1,6 +1,7 @@
 target_sources(${KERNEL_TARGET} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/memset.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/memcpy.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/memcmp.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/strlen.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/strcmp.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/strcat.c"
@@ -9,4 +10,5 @@ target_sources(${KERNEL_TARGET} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/strchr.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/strrchr.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/strtok.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/char16_to_ascii.c"
 )
