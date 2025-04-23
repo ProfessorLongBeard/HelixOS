@@ -123,8 +123,6 @@ uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, size_t length) {
         return st;
     }
 
-    printf("VIRTIO: Sucessfully read sector(s) 0x%lx, length %llu\n", sector, length);
-
     kfree(req, sizeof(virtio_blk_req_t));
     kfree(status, 1);
     spinlock_release(&s);
@@ -213,8 +211,6 @@ uint32_t virtio_blk_write(uint8_t *buf, uint64_t sector, uint64_t length) {
         spinlock_release(&s);
         return st;
     }
-
-    printf("VIRTIO: Sucessfully wrote sector(s) 0x%lx, length %llu\n", sector, length);
 
     kfree(req, sizeof(virtio_blk_req_t));
     kfree(status, 1);
