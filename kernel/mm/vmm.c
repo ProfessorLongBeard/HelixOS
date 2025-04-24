@@ -20,6 +20,7 @@ static page_table_t *pgd = NULL;
 
 
 
+
 void vmm_init(uintptr_t kernel_phys, uintptr_t kernel_virt, struct limine_memmap_response *m) {
     assert(m != NULL);
 
@@ -254,6 +255,46 @@ void vmm_unmap_range(page_table_t *table, uintptr_t virt_start, uintptr_t virt_e
     for (size_t i = 0; i < num_pages; i++) {
         vmm_unmap(table, virt_start + (i * PAGE_SIZE), phys_start + (i * PAGE_SIZE));
     }
+}
+
+uintptr_t vmm_virt2phys(page_table_t *table, uintptr_t virt) {
+    uintptr_t l0_idx = PGD_IDX(virt);
+    uintptr_t l1_idx = PUD_IDX(virt);
+    uintptr_t l2_idx = PMD_IDX(virt);
+    uintptr_t l3_idx = PTE_IDX(virt);
+    uintptr_t pte = 0;
+
+
+    
+    assert(table != NULL);
+    page_table_t *l0 = (page_table_t *)table;
+    page_table_t *l1 = NULL, *l2 = NULL, *l3 = NULL;
+
+    spinlock_acquire(&s);
+
+    if (!(l0->entries[l0_idx] & PT_VALID)) {
+        spinlock_release(&s);
+        return 0;
+    }
+    
+    l1 = (page_table_t *)PHYS_TO_VIRT(l0->entries[l0_idx] & ~0xFFF);
+
+    if (!(l1->entries[l1_idx] & PT_VALID)) {
+        return 0;
+    }
+
+    l2 = (page_table_t *)PHYS_TO_VIRT(l1->entries[l1_idx] & ~0xFFF);
+    
+    if (!(l2->entries[l2_idx] & PT_VALID)) {
+        return 0;
+    }
+    
+    l3 = (page_table_t *)PHYS_TO_VIRT(l2->entries[l2_idx] & ~0xFFF);
+
+    pte = l3->entries[l3_idx] & PT_PADDR_MASK;
+
+    spinlock_release(&s);
+    return pte + (virt & 0xFFF);
 }
 
 page_table_t *vmm_get_pgd(void) {

@@ -127,5 +127,6 @@ void vmm_map_range(page_table_t *table, uintptr_t virt_start, uintptr_t virt_end
 void vmm_unmap(page_table_t *table, uintptr_t virt, uintptr_t phys);
 void vmm_unmap_range(page_table_t *table, uintptr_t virt_start, uintptr_t virt_end, uintptr_t phys_start);
 page_table_t *vmm_get_pgd(void);
+uintptr_t vmm_virt2phys(page_table_t *table, uintptr_t virt);
 
 #endif
