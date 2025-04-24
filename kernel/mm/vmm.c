@@ -173,7 +173,7 @@ void vmm_map(page_table_t *table, uintptr_t virt, uintptr_t phys, uint64_t flags
         page_table_t *l1 = pmm_alloc();
         assert(l1 != NULL);
 
-        l0->entries[l0_idx] = VIRT_TO_PHYS((uintptr_t)l0) | PT_TABLE | PT_VALID;
+        l0->entries[l0_idx] = VIRT_TO_PHYS((uintptr_t)l1) | PT_TABLE | PT_VALID;
     }
 
     page_table_t *l1 = (page_table_t *)PHYS_TO_VIRT(l0->entries[l0_idx] & ~0xFFF);
@@ -254,6 +254,10 @@ void vmm_unmap_range(page_table_t *table, uintptr_t virt_start, uintptr_t virt_e
     for (size_t i = 0; i < num_pages; i++) {
         vmm_unmap(table, virt_start + (i * PAGE_SIZE), phys_start + (i * PAGE_SIZE));
     }
+}
+
+page_table_t *vmm_get_pgd(void) {
+    return (page_table_t *)pgd;
 }
 
 void vmm_inval_all(void) {
