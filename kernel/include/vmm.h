@@ -126,7 +126,6 @@ void vmm_map(page_table_t *table, uintptr_t virt, uintptr_t phys, uint64_t flags
 void vmm_map_range(page_table_t *table, uintptr_t virt_start, uintptr_t virt_end, uintptr_t phys, uint64_t flags);
 void vmm_unmap(page_table_t *table, uintptr_t virt, uintptr_t phys);
 void vmm_unmap_range(page_table_t *table, uintptr_t virt_start, uintptr_t virt_end, uintptr_t phys_start);
-page_table_t *vmm_get_table(page_table_t *table, uintptr_t idx);
 page_table_t *vmm_get_pgd(void);
 
 #endif
