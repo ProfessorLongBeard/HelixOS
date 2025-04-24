@@ -69,7 +69,7 @@ SECTIONS
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-    .bss : {
+    .bss (NOLOAD) : {
         __sbss = .;
         *(.bss .bss.*)
         *(COMMON)
@@ -79,10 +79,10 @@ SECTIONS
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
-    .stack : {
+    .stack (NOLOAD) : {
         . = ALIGN(16);
         __sstack = .;
-        . += 0x10000; /* Initial 64KB stack space */
+        . = . + 0x200000; /* Initial 2MB stack space */
         __estack = .;
         __stack_size = __estack - __sstack;
     } :stack
