@@ -6,8 +6,8 @@
 #include <limine.h>
 #include <pmm.h>
 #include <vmm.h>
-#include <slab.h>
-#include <alloc.h>
+#include <heap.h>
+
 
 
 
