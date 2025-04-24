@@ -22,5 +22,6 @@
         "--pch-storage=disk",
         "--use-dirty-headers=0"
     ],
-    "git.ignoreLimitWarning": true
+    "git.ignoreLimitWarning": true,
+    "mesonbuild.selectRootDir": false
 }
