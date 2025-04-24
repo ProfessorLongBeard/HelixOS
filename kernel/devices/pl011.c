@@ -15,9 +15,6 @@ static volatile uart_t *pl011 = (uart_t *)UART_BASE;
 
 
 
-
-
-
 void uart_init(void) {
     // TODO: Get baudrate from cmdline
     uint64_t uart_divisor = 24000000 / (16 * 115200);
@@ -34,12 +31,13 @@ void uart_init(void) {
 
     pl011->uart_imsc |= UART_RXIC | UART_TXIC;
 
-    pl011->uart_cr |= UART_EN | UART_TXE | UART_RXE;
-
     irq_register(UART_IRQ, uart_irq_handler);
     gic_set_irq_group_ns(UART_IRQ);
     gic_set_irq_level_trigger(UART_IRQ);
     gic_enable_irq(UART_IRQ);
+
+    // Enable UART after regitering IRQ handler
+    pl011->uart_cr |= UART_EN | UART_TXE | UART_RXE;
 }
 
 void uart_irq_handler(void) {
