@@ -13,6 +13,7 @@ target_include_directories(${KERNEL_TARGET} PRIVATE
 
 )
 
+# TODO: Ensure kernel's shared pointers are volatile before compling with -O1/-O2/-O3
 target_compile_options(${KERNEL_TARGET} PRIVATE
     -g
     -O0
@@ -64,4 +65,5 @@ add_subdirectory(init)
 add_subdirectory(devices)
 add_subdirectory(lib)
 add_subdirectory(mm)
+add_subdirectory(fs)
 add_subdirectory(locking)
