@@ -5,6 +5,8 @@
 #include <kstdlib.h>
 #include <mm.h>
 #include <arch.h>
+#include <fs/mbr.h>
+#include <fs/vfs.h>
 #include <devices/timer.h>
 #include <devices/gicv3.h>
 #include <devices/pl011.h>
@@ -61,11 +63,14 @@ void helix_init(void) {
 
     pmm_init(m);
     vmm_init(kr->physical_base, kr->virtual_base, m);
-    slab_init();
+    heap_init(m);
     gic_init();
     timer_init();
     uart_init();
     virtio_init();
+    mbr_init();
+    gpt_init();
+    ext2_init();
 
     __hcf();
 }
