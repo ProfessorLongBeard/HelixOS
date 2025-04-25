@@ -78,9 +78,9 @@ void pmm_init(struct limine_memmap_response *m) {
         bmp.used_pages++;
     }
 
-    printf("PMM: Available memory region: 0x%lx - 0x%lx length: %lluGB\n", bmp.phys_start, bmp.phys_end, bmp.phys_size / 1024 / 1024 / 1024);    
-    printf("PMM: Bitmap: 0x%lx - 0x%lx length: %lluKB\n", VIRT_TO_PHYS(bmp.bitmap_base), VIRT_TO_PHYS(bmp.bitmap_end), bmp.bitmap_size / 1024);
-    printf("PMM: Total pages: %llu used pages: %llu reserved pages: %llu\n", bmp.total_pages, bmp.used_pages, bmp.reserved_pages);
+    printf("PMM: Available memory region: 0x%lx - 0x%lx length: %luGB\n", bmp.phys_start, bmp.phys_end, bmp.phys_size / 1024 / 1024 / 1024);    
+    printf("PMM: Bitmap: 0x%lx - 0x%lx length: %luKB\n", VIRT_TO_PHYS(bmp.bitmap_base), VIRT_TO_PHYS(bmp.bitmap_end), bmp.bitmap_size / 1024);
+    printf("PMM: Total pages: %lu used pages: %lu reserved pages: %lu\n", bmp.total_pages, bmp.used_pages, bmp.reserved_pages);
 }
 
 uint64_t pmm_get_bitmap_base(void) {
@@ -89,6 +89,18 @@ uint64_t pmm_get_bitmap_base(void) {
 
 size_t pmm_get_bitmap_size(void) {
     return bmp.bitmap_size;
+}
+
+uintptr_t pmm_get_phys_base(void) {
+    return bmp.phys_start;
+}
+
+uintptr_t pmm_get_phys_end(void) {
+    return bmp.phys_end;
+}
+
+size_t pmm_get_phys_size(void) {
+    return bmp.phys_size;
 }
 
 void *pmm_alloc(void) {

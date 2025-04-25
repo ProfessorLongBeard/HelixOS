@@ -15,12 +15,12 @@
 typedef struct {
     spinlock_t  s;
 
-    uint64_t    phys_start;
-    uint64_t    phys_end;
+    uintptr_t   phys_start;
+    uintptr_t   phys_end;
     size_t      phys_size;
 
-    uint64_t    bitmap_base;
-    uint64_t    bitmap_end;
+    uintptr_t   bitmap_base;
+    uintptr_t   bitmap_end;
     size_t      bitmap_size;
 
     size_t      total_pages;
@@ -36,5 +36,8 @@ void *pmm_alloc(void);
 void pmm_free(void *ptr);
 void *pmm_alloc_pages(size_t page_count);
 void pmm_free_pages(void *ptr, size_t page_count);
+uintptr_t pmm_get_phys_base(void);
+uintptr_t pmm_get_phys_end(void);
+size_t pmm_get_phys_size(void);
 
 #endif
