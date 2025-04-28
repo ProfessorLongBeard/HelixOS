@@ -1,7 +1,7 @@
 #include <kstdio.h>
 #include <kstdlib.h>
 #include <kstring.h>
-#include <mm.h>
+#include <mm/mm.h>
 #include <kernel.h>
 #include <spinlock.h>
 
@@ -9,8 +9,8 @@
 
 
 static spinlock_t s;
-static heap_info_t  heap_info;
-static heap_block_t *heap_head = NULL;
+static heap_page_list_t *page_list;
+static kslab_cache_t kslab_cache[KSLAB_COUNT];
 
 
 
@@ -19,142 +19,591 @@ static heap_block_t *heap_head = NULL;
 
 
 
-void heap_init(struct limine_memmap_response *m) {
-    uintptr_t pmm_usable_base = pmm_get_phys_base();
-    uintptr_t pmm_usable_end = pmm_get_phys_end();
-    uintptr_t pmm_usable_size = pmm_get_phys_size();
 
+static kslab_cache_t *kslab_cache_for_each(int slab_order) {
+    if (slab_order > KSLAB_COUNT) {
+        printf("HEAP: Kernel slab order %d out of bounds!\n", slab_order);
+        return NULL;
+    }
+
+    return &kslab_cache[slab_order];
+}
+
+static int kslab_get_order(size_t length) {
+    int slab_order = 0;
+    size_t slab_size = KSLAB_MIN;
+
+    while(slab_size <= length && slab_order <= KSLAB_COUNT - 1) {
+        slab_size <<= 1;
+        slab_order++;
+    }
+
+    return slab_order;
+}
+
+static size_t kslab_get_size(size_t length) {
+    size_t slab_size = KSLAB_MIN;
+
+    while(slab_size <= length) {
+        slab_size <<= 1;
+    }
+
+    return length;
+}
+
+void kheap_init(void) {
+    void *free_list = NULL;
+    size_t slab_size = KSLAB_MIN;
+    kslab_t *slab = NULL;
 
 
 
     spinlock_init(&s);
 
-    for (uint32_t i = 0; i < m->entry_count; i++) {
-        struct limine_memmap_entry *e = m->entries[i];
+    for (int i = 0; i <= KSLAB_COUNT && slab_size <= KSLAB_MAX; i++) {
+        kslab_cache_t *cache = kslab_cache_for_each(i);
+        assert(cache != NULL);
 
-        if (e->type == LIMINE_MEMMAP_USABLE || e->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || e->type == LIMINE_MEMMAP_ACPI_RECLAIMABLE) {
-            uintptr_t base = e->base;
-            uintptr_t end = e->base + e->length;
-            size_t size = e->length;
+        // Allocate page frame for slab object
+        slab = pmm_alloc();
+        assert(slab != NULL);
 
-            // Get the next usable region outside of the PMM usable memory region
-            if (base == pmm_usable_base && end <= pmm_usable_end) {
-                continue;
+        // Get physical address of page frame
+        uintptr_t slab_phys_base = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)slab);
+        uintptr_t slab_virt_base = HEAP_VIRT_BASE + slab_phys_base;
+        uintptr_t slab_virt_end = slab_virt_base + PAGE_SIZE;
+        uintptr_t slab_orig_virt_base = VMM_VIRT_BASE + slab_phys_base;
+
+        // Map slab object into kernel heap virtual space
+        vmm_map(vmm_get_pgd(), slab_virt_base, slab_phys_base, PT_KERNEL_RW | PT_HEAP);
+        vmm_inval_page(slab_virt_base);
+
+        // Unmap orignal page entry
+        vmm_unmap(vmm_get_pgd(), slab_orig_virt_base, slab_phys_base);
+        vmm_flush_cache_range(slab_virt_base, slab_virt_end);
+
+        // Ensure slab object points to new mapping
+        slab = (kslab_t *)slab_virt_base;
+
+        slab->total_objects = PAGE_SIZE / slab_size;
+        slab->free_objects = slab->total_objects;
+        slab->object_size = slab_size + sizeof(uintptr_t);
+        slab->free_list = NULL;
+
+        free_list = (void *)((uintptr_t)slab + sizeof(kslab_t));
+
+        for (uint64_t i = 0; i < slab->total_objects; i++) {
+            if ((uintptr_t)free_list + slab->object_size > (uintptr_t)slab + PAGE_SIZE) {
+                // Prevent writing outside of the mapped page
+                break;
             }
 
-            // Use the next entry available to us
-            if (heap_info.heap_phys_base == 0) {
-                heap_info.heap_phys_base = base;
-            }
-
-            heap_info.heap_size += size;
+            *(void **)free_list = slab->free_list;
+            slab->free_list = free_list;
+            free_list = (void *)((uint8_t *)free_list + slab->object_size);
         }
+
+        slab->next = cache->slab_list;
+        cache->slab_list_count = slab->total_objects;
+        cache->slab_list = slab;
+
+        slab_size <<= 1;
     }
 
-    heap_info.heap_virt_base = HEAP_VIRT_BASE;
-    heap_info.heap_phys_end = heap_info.heap_phys_base + heap_info.heap_size;
-    heap_info.heap_virt_end = heap_info.heap_virt_base + heap_info.heap_size;
+    // Allocate initial page heap list
+    page_list = kslab_alloc(sizeof(heap_page_list_t));
+    assert(page_list != NULL);
 
-    printf("HEAP: Available region: 0x%lx - 0x%lx length: %luMB\n", heap_info.heap_phys_base, heap_info.heap_phys_end, heap_info.heap_size / (1024 * 1024));
-    printf("HEAP: Virtual region: 0x%lx - 0x%lx length: %luMB\n", heap_info.heap_virt_base, heap_info.heap_virt_end, heap_info.heap_size / (1024 * 1024));
-
-    // Map kernel heap 
-    vmm_map_range(vmm_get_pgd(), heap_info.heap_virt_base, heap_info.heap_virt_end, heap_info.heap_phys_base, PT_KERNEL_RW | PT_HEAP);
-    vmm_flush_cache_range(heap_info.heap_virt_base, heap_info.heap_virt_end);
-
-    heap_head = (heap_block_t *)heap_info.heap_virt_base;
-    heap_head->magic = HEAP_MAGIC;
-    heap_head->length = heap_info.heap_size;
-    heap_head->is_free = true;
-    heap_head->next = NULL;
-
-    printf("HEAP: Initialized!\n");
+    printf("HEAP: Initialized\n");
 }
 
-static heap_block_t *heap_find_first_free(size_t length) {
-    heap_block_t *curr = heap_head;
+static kslab_t *kslab_create_new(size_t length) {
+    void *free_list = NULL;
+    kslab_t *slab = NULL;
+    size_t slab_size = kslab_get_size(length);
+    int slab_order = kslab_get_order(length);
+    
+    
+    
+    kslab_cache_t *cache = kslab_cache_for_each(slab_order);
+    assert(cache != NULL);
+
+    // Allocate page frame for slab object
+    slab = pmm_alloc();
+    assert(slab != NULL);
+
+    // Get physical address of page frame
+    uintptr_t slab_phys_base = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)slab);
+    uintptr_t slab_virt_base = HEAP_VIRT_BASE + slab_phys_base;
+    uintptr_t slab_virt_end = slab_virt_base + PAGE_SIZE;
+    uintptr_t slab_orig_virt_base = VMM_VIRT_BASE + slab_phys_base;
+
+    // Map slab object into kernel heap virtual space
+    vmm_map(vmm_get_pgd(), slab_virt_base, slab_phys_base, PT_KERNEL_RW | PT_HEAP);
+    vmm_inval_page(slab_virt_base);
+
+    // Unmap orignal page entry
+    vmm_unmap(vmm_get_pgd(), slab_orig_virt_base, slab_phys_base);
+    vmm_flush_cache_range(slab_virt_base, slab_virt_end);
+
+    // Ensure slab object points to new mapping
+    slab = (kslab_t *)slab_virt_base;
+
+    slab->total_objects = PAGE_SIZE / slab_size;
+    slab->free_objects = slab->total_objects;
+    slab->object_size = slab_size;
+    slab->free_list = NULL;
+
+    free_list = (void *)((uintptr_t)slab + sizeof(kslab_t));
+
+    for (uint64_t i = 0; i < slab->total_objects; i++) {
+        if ((uintptr_t)free_list + slab->object_size > (uintptr_t)slab + PAGE_SIZE) {
+            // Prevent writing outside of the mapped page
+            break;
+        }
+
+        *(void **)free_list = slab->free_list;
+        slab->free_list = free_list;
+        free_list = (void *)((uint8_t *)free_list + slab->object_size);
+    }
+
+    slab->next = cache->slab_list;
+    cache->slab_list_count = slab->total_objects;
+    cache->slab_list = slab;
+
+    return slab;
+}
+
+static void *kslab_get_object(kslab_t *slab, size_t length) {
+    void *ptr = NULL;
+    kslab_t *curr = slab;
+    uintptr_t *slab_ptr = NULL;
+
+
+
+    if (!curr) {
+        return NULL;
+    }
+
+    if (curr->free_objects == 0) {
+        // New slab object should be created
+        return NULL;
+    }
+
+    ptr = (void *)slab->free_list;
+
+    if (!ptr) {
+        return NULL;
+    }
+
+    slab->free_list = *(void **)ptr;
+    slab->free_objects--;
+
+    return ptr;
+}
+
+static kslab_t *kslab_find_first_free(size_t length) {
+    size_t order = kslab_get_order(length);
+    kslab_t *slab = NULL;
+    kslab_cache_t *cache = NULL;
+
+
+    cache = kslab_cache_for_each(order);
+
+    if (!cache) {
+        return NULL;
+    }
+
+    slab = cache->slab_list;
+
+    if (!slab) {
+        return NULL;
+    }
+
+    while(slab != NULL) {
+        if (slab->free_objects > 0 && slab->object_size == length) {
+            return slab;
+        }
+
+        slab = slab->next;
+    }
+
+    return NULL;
+}
+
+static kslab_t *kslab_get_end(kslab_t *slab) {
+    kslab_t *head = slab;
+
+    assert(head != NULL);
+
+    while(head->next != NULL) {
+        head = head->next;
+    }
+
+    return head;
+}
+
+static void kslab_link_to_cache(kslab_t *new_slab) {
+    kslab_t *slab = NULL;
+    kslab_cache_t *cache = NULL;
+    size_t order = 0;
+    
+    
+    assert(new_slab != NULL);
+    
+    order = kslab_get_order(new_slab->object_size);
+    
+    if (order > KSLAB_COUNT) {
+        return;
+    }
+    
+    cache = kslab_cache_for_each(order);
+    
+    if (!cache) {
+        return;
+    }
+
+    if (cache->slab_list == NULL) {
+        cache->slab_list = new_slab;
+    } else {
+        kslab_t *next = kslab_get_end(cache->slab_list);
+        
+        if (!next) {
+            return;
+        }
+
+        next->next = new_slab;
+    }
+
+    cache->slab_list_count++;
+}
+
+void *kslab_alloc(size_t length) {
+    void *ptr = NULL;
+    kslab_t *slab = NULL;
+    kslab_cache_t *cache = NULL;
+    int slab_order = 0;
+    
+
+
+    if (length < KSLAB_MIN) {
+        length = KSLAB_MIN;
+    }
+
+    slab_order = kslab_get_order(length);
+
+    if (slab_order > KSLAB_COUNT) {
+        return NULL;
+    }
+
+    cache = kslab_cache_for_each(slab_order);
+
+    if (!cache) {
+        return NULL;
+    }
+
+    slab = cache->slab_list;
+
+    if (!slab) {
+        return NULL;
+    }
+
+    // TODO: Maybe check if slab is NULL instead of slab->next?
+    while(slab->next != NULL) {
+        if (slab->free_objects > 0 && slab->object_size >= length) {
+            break;
+        }
+
+        slab = slab->next;
+    }
+
+    if (slab->free_objects == 0) {
+        slab = kslab_create_new(length);
+
+        if (!slab) {
+            return NULL;
+        }
+
+        kslab_link_to_cache(slab);
+
+        ptr = kslab_get_object(slab, length);
+
+        if (!ptr) {
+            return NULL;
+        }
+
+        memset(ptr, 0, length);
+        return ptr;
+    }
+
+    ptr = kslab_get_object(slab, length);
+
+    if (!ptr) {
+        return NULL;
+    }
+
+    memset(ptr, 0, length);
+    return ptr;
+}
+
+void kslab_free(void *ptr, size_t length) {
+    kslab_t *slab = NULL;
+    kslab_cache_t *cache = NULL;
+    int slab_order = kslab_get_order(length);
+    size_t slab_size = kslab_get_size(length);
+ 
+
+
+    cache = kslab_cache_for_each(slab_order);
+
+    if (!cache) {
+        return;
+    }
+
+    slab = cache->slab_list;
+
+    while(slab != NULL) {
+        uintptr_t slab_start = (uintptr_t)slab + sizeof(*slab);
+        uintptr_t slab_end = slab_start + (slab->total_objects * slab->object_size);
+
+        if ((uintptr_t)ptr >= slab_start && (uintptr_t)ptr < slab_end) {
+            // Place freed object back into freelist
+            *(void **)ptr = slab->free_list;
+            slab->free_list = (void *)ptr;
+            slab->free_objects++;
+        }
+
+        // Move to next slab in list
+        slab = slab->next;
+    }
+}
+
+static heap_page_list_t *heap_find_list(heap_page_list_t *list, uintptr_t phys_base, uintptr_t virt_base, size_t length) {
+    heap_page_list_t *curr = list;
+
+
+
+    if (!list) {
+        return NULL;
+    }
 
     while(curr != NULL) {
-        if (curr->is_free == true && curr->length >= length) {
+        // Look for page node to recycle for use in list
+        if (curr->virt_base == virt_base && curr->phys_base == phys_base && curr->length == length) {
             return curr;
         }
 
+        // If none were found go to the next node
         curr = curr->next;
     }
 
     return NULL;
 }
 
-static void heap_split(heap_block_t *ptr, size_t length) {
-    heap_block_t *block = NULL;
-    size_t remaining = 0, total_req_length = 0;
+static heap_page_list_t *heap_list_alloc(void) {
+    heap_page_list_t *new_list = NULL;
 
 
+    new_list = kslab_alloc(sizeof(heap_page_list_t));
 
-    if (!ptr) {
+    if (!new_list) {
+        return NULL;
+    }
+
+    memset(new_list, 0, sizeof(heap_page_list_t));
+
+    return new_list;
+}
+
+static heap_page_list_t *heap_list_get_end(void) {
+    heap_page_list_t *curr = page_list;
+
+    if (!curr) {
+        return NULL;
+    }
+
+    while(curr->next != NULL) {
+        curr = curr->next;
+    }
+
+    return curr;
+}
+
+static void heap_push_to_list(heap_page_list_t *list) {
+    heap_page_list_t *curr = NULL;
+
+
+    if (!list) {
         return;
     }
 
-    total_req_length = length + sizeof(heap_block_t);
+    curr = heap_list_get_end();
 
-    if (ptr->length >= total_req_length + sizeof(heap_block_t))  {
-        printf("HEAP: Splitting block: 0x%lx length: %lu\n", (uintptr_t)ptr, length);
-        remaining = ptr->length - total_req_length;
-
-        heap_block_t *new_block = (heap_block_t *)((uintptr_t)ptr + total_req_length);
-        new_block->length = remaining;
-        new_block->is_free = true;
-        new_block->is_aligned = false;
-        new_block->next = ptr->next;
-
-        ptr->magic = HEAP_MAGIC;
-        ptr->length = length;
-        ptr->is_free = false;
-        ptr->is_aligned = false;
-        ptr->next = new_block;
-    } else {
-        printf("HEAP: Using whole block: 0x%lx, length: %lu\n", (uintptr_t)ptr, length);
-        ptr->is_free = false;
+    if (!curr) {
+        return;
     }
+
+    curr->next = list;
 }
 
-static void heap_expand(void) {
-    // TODO: Implement heap expansion
+static heap_page_list_t *heap_remove_from_list(heap_page_list_t **list, uintptr_t phys) {
+    heap_page_list_t *curr = *list;
+    heap_page_list_t *prev = NULL;
+
+
+    if (!list) {
+        return NULL;
+    }
+
+    while(curr) {
+        if (curr->phys_base == phys) {
+            if (prev) {
+                prev->next = curr->next;
+            } else {
+                *list = curr->next;
+            }
+
+            // Ensure to free used slab object
+            kslab_free(curr->next, sizeof(heap_page_list_t));
+
+            curr->next = NULL;
+            return curr;
+        }
+
+        prev = curr;
+        curr = curr->next;
+    }
+
+    return NULL;
+}
+
+static void *heap_alloc_from_list(heap_page_list_t *list) {
+    void *ptr = NULL;
+
+    
+    if (!list) {
+        return NULL;
+    }
+
+    // Get pointer to virtual base
+    ptr = (void *)list->virt_base;
+
+    if (!ptr) {
+        return NULL;
+    }
+
+    // Remove this page node from the list to prevent it being allocated a 2nd time
+    heap_remove_from_list(&page_list, list->phys_base);
+
+    return ptr;
 }
 
 void *kmalloc(size_t length) {
-    void *ptr = NULL;
-    heap_block_t *new_block = NULL;
+    void *ptr = NULL, *tmp_ptr = NULL;
+    heap_page_list_t *page = NULL;
+    size_t page_count = 0;
+    kslab_t *slab = NULL;
 
 
+
+    // DON'T FORGET TO RELEASE THE FUCKING LOCK!!!
     spinlock_acquire(&s);
 
-    new_block = heap_find_first_free(length);
+    if (length <= KSLAB_MAX) {
+        // If requested allocation is within the supported slab size grab a slab from cache
+        ptr = kslab_alloc(length);
 
-    if (!new_block) {
-        printf("HEAP: Failed to allocate length %lu! (out of memory)\n", length);
+        if (!ptr) {
+            // Assume (for now) that we've run out of available slabs, so just create a new one
+            slab = kslab_create_new(length);
 
+            if (!slab) {
+                spinlock_release(&s);
+                return NULL;
+            }
+
+            // Link new slab object to existing cache
+            kslab_link_to_cache(slab);
+
+            // Get object from new slab
+            ptr = kslab_get_object(slab, length);
+
+            if (!ptr) {
+                spinlock_release(&s);
+                return NULL;
+            }
+
+            spinlock_release(&s);
+            return ptr;
+        }
+
+        spinlock_release(&s);
+        return ptr;
+    }
+
+    uintptr_t phys_base = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)ptr);
+    uintptr_t virt_base = HEAP_VIRT_BASE + phys_base;
+    uintptr_t virt_end = virt_base + length;
+    uintptr_t orig_virt_base = VMM_VIRT_BASE + phys_base;
+    uintptr_t orig_virt_end = orig_virt_base + length;
+
+    page = heap_find_list(page_list, phys_base, virt_base, length);
+
+    if (!page) {
+        // Create new page(s) and link them to list
+        page = heap_list_alloc();
+
+        if (!page) {
+            spinlock_release(&s);
+            return NULL;
+        }
+
+        page->length = length;
+        page->page_count = SIZE_TO_PAGES(length, PAGE_SIZE);
+
+        // Request page frames from the PMM
+        tmp_ptr = pmm_alloc_pages(page->page_count);
+
+        if (!tmp_ptr) {
+            kslab_free(page, sizeof(heap_page_list_t));
+
+            spinlock_release(&s);
+            return NULL;
+        }
+
+        // Get physical base of page frame
+        page->phys_base = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)tmp_ptr);
+        page->virt_base = HEAP_VIRT_BASE + page->phys_base;
+
+        orig_virt_base = VMM_VIRT_BASE + page->phys_base;
+        orig_virt_end = orig_virt_base + page->length;
+
+        // Create new mapping for heap
+        vmm_map_range(vmm_get_pgd(), page->virt_base, page->virt_base + page->length, page->phys_base, PT_KERNEL_RW | PT_HEAP);
+        vmm_inval_page_range(page->virt_base, page->length);
+
+        // Unmap previous HHDM mapping
+        vmm_unmap(vmm_get_pgd(), orig_virt_base, phys_base);
+        vmm_flush_cache_range(orig_virt_base, orig_virt_end);
+
+        // Insert page into free list of pages
+        heap_push_to_list(page);
+    }
+
+    // Allocate existing page from list
+    ptr = heap_alloc_from_list(page);
+
+    if (!ptr) {
         spinlock_release(&s);
         return NULL;
     }
-
-    heap_split(new_block, length);
-    assert(new_block != NULL);
-
-    ptr = (void *)((uintptr_t)new_block + sizeof(heap_block_t));
-    assert(ptr != NULL);
-
-    // Ensure allocated block is cleared
-    memset(ptr, 0, length);
-
-    printf("HEAP: Allocated block: 0x%lx length: %lu\n", (uintptr_t)ptr, length);
 
     spinlock_release(&s);
     return ptr;
 }
 
-void kfree(void *ptr) {
-    heap_block_t *curr = heap_head, *block = NULL;
+void kfree(void *ptr, size_t length) {
+    heap_page_list_t *page = NULL;
 
 
     spinlock_acquire(&s);
@@ -164,81 +613,31 @@ void kfree(void *ptr) {
         return;
     }
 
-    block = (heap_block_t *)((uintptr_t)ptr - sizeof(heap_block_t));
-    assert(block != NULL);
-
-    if (block->magic != HEAP_MAGIC) {
-        printf("HEAP: Invalid heap magic 0x%lx! (corrupted)\n", block->magic);
-        return;
-    }
-
-    if (block->is_free == true) {
-        printf("HEAP: Double free detected @ 0x%lx!\n", (uintptr_t)ptr);
-        return;
-    }
-
-    if (block->is_aligned == true) {
-        printf("HEAP: Freeing aligned block: 0x%lx length: %lu\n", (uintptr_t)ptr, block->length);
-        block->is_aligned = false;
-        block->is_free = true;
-    } else {
-        printf("HEAP: Freeing block: 0x%lx length: %lu\n", (uintptr_t)ptr, block->length);
-        block->is_free = true;
-    }
-
-    while(curr && curr->next) {
-        // Coalesce adjacent free blocks in attempt to prevent fragmentation
-        if (curr->is_free == true && curr->next->is_free == true) {
-            curr->length += sizeof(heap_block_t) + curr->next->length;
-            curr->next = curr->next->next;
-        } else {
-            curr = curr->next;
-        }
-    }
-
-    spinlock_release(&s);
-}
-
-void *kmalloc_aligned(size_t length, uint64_t alignment) {
-    void *ptr = NULL;
-    uintptr_t start = 0, aligned_start = 0;
-    heap_block_t *curr = heap_head, *new_block = NULL;
-    size_t padding = 0;
-
-
-
-    spinlock_acquire(&s);
-
-    new_block = heap_find_first_free(length + alignment);
-
-    if (!new_block) {
-        printf("HEAP: Failed to allocate length %lu! (out of memory)\n", length);
+    if (length <= KSLAB_MAX) {
+        kslab_free(ptr, length);
 
         spinlock_release(&s);
-        return NULL;
+        return;
     }
 
-    start = (uintptr_t)new_block + sizeof(heap_block_t);
-    aligned_start = ALIGN_UP(start, alignment);
-    padding = aligned_start - start;
+    uintptr_t phys_base = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)ptr);
+    uintptr_t virt_base = HEAP_VIRT_BASE + phys_base;
+    uintptr_t virt_end = virt_base + length;
 
-    if (padding > 0) {
-        // Split to skip padding
-        heap_split(new_block, padding);
-        new_block = new_block->next;
+    page = heap_list_alloc();
+
+    if (!page) {
+        spinlock_release(&s);
+        return;
     }
 
-    heap_split(new_block, length);
-    new_block->is_aligned = true;
-    new_block->is_free = false;
+    page->phys_base = phys_base;
+    page->virt_base = virt_base;
+    page->length = length;
+    page->page_count = SIZE_TO_PAGES(page->length, PAGE_SIZE);
 
-    ptr = (void *)((uintptr_t)new_block + sizeof(heap_block_t));
-    assert(ptr != NULL);
-
-    memset(ptr, 0, length);
-
-    printf("HEAP: Allocated aligned block: 0x%lx length: %lu\n", (uintptr_t)ptr, length);
+    // Push page node back into free list
+    heap_push_to_list(page);
 
     spinlock_release(&s);
-    return ptr;
 }

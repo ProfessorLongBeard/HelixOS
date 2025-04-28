@@ -1,7 +1,7 @@
 #include <kstdio.h>
 #include <kstdlib.h>
 #include <irq.h>
-#include <mm.h>
+#include <mm/mm.h>
 #include <arch.h>
 #include <devices/gicv3.h>
 #include <devices/virtio/virtio.h>
@@ -155,7 +155,6 @@ void virtio_init(void) {
 }
 
 void virtio_irq_handler(void) {
-    virtio_queue_t *vq = NULL;
     virtio_used_elem_t *elem = NULL;
     virtio_blk_req_t *req = NULL;
     uint16_t last_used = 0, used_index = 0, ring_index = 0;
@@ -164,18 +163,14 @@ void virtio_irq_handler(void) {
 
 
 
-    assert(dev != NULL);
-    assert(dev->vq != NULL);
-
     v->interrupt_ack = v->interrupt_status;
-    vq = dev->vq;
 
     last_used = vq->last_used;
     used_index = vq->used.index;
 
     while(last_used != used_index) {
         ring_index = last_used % VIRTIO_QUEUE_SIZE;
-        elem = &vq->used.ring[ring_index];
+        elem = (virtio_used_elem_t *)&vq->used.ring[ring_index];
 
         desc1 = elem->id;
 
@@ -218,21 +213,17 @@ void virtio_submit_req(uint16_t desc_index) {
     uint16_t ring_index = 0;
     uintptr_t desc_phys = 0, avail_phys = 0, used_phys = 0;
 
-    assert(dev != NULL);
-    assert(dev->vq != NULL);
 
 
 
     v->queue_sel = desc_index;
-    __mb();
 
     v->queue_num = VIRTIO_QUEUE_SIZE;
 
-    desc_phys = VIRT_TO_PHYS((uintptr_t)dev->vq->desc);
-    avail_phys = VIRT_TO_PHYS((uintptr_t)&dev->vq->avail);
-    used_phys = VIRT_TO_PHYS((uintptr_t)&dev->vq->used);
+    desc_phys = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)vq->desc);
+    avail_phys = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)&vq->avail);
+    used_phys = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)&vq->used);
 
-    __mb();
     v->queue_desc_low = desc_phys;
     v->queue_desc_high = 0;
 
@@ -243,20 +234,21 @@ void virtio_submit_req(uint16_t desc_index) {
     v->queue_used_high = 0;
     __mb();
 
+    vq->avail.ring[vq->avail.index % VIRTIO_QUEUE_SIZE] = desc_index;
+
+    vq->avail.flags = RING_EVENT_FLAGS_ENABLE;
+    vq->avail.event = 0;
+
+    vq->used.flags = RING_EVENT_FLAGS_ENABLE;
+    vq->used.event = 0;
+    __mb();
+
     v->queue_ready = 1;
-    __mb();
-
-    dev->vq->avail.ring[dev->vq->avail.index % VIRTIO_QUEUE_SIZE] = desc_index;
-
-    dev->vq->avail.flags = RING_EVENT_FLAGS_ENABLE;
-    dev->vq->avail.event = 0;
-
-    dev->vq->used.flags = RING_EVENT_FLAGS_ENABLE;
-    dev->vq->used.event = 0;
 
     __mb();
-    dev->vq->avail.index += 1;
+    vq->avail.index++;
     __mb();
 
     v->queue_notify = 0;
+    __mb();
 }

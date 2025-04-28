@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <framebuffer.h>
 #include <kstdlib.h>
-#include <mm.h>
+#include <mm/mm.h>
 #include <arch.h>
 #include <fs/mbr.h>
 #include <fs/vfs.h>
@@ -63,7 +63,7 @@ void helix_init(void) {
 
     pmm_init(m);
     vmm_init(kr->physical_base, kr->virtual_base, m);
-    heap_init(m);
+    kheap_init();
     gic_init();
     timer_init();
     uart_init();

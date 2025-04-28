@@ -2,7 +2,7 @@
 #define UART_H
 
 #include <stdint.h>
-#include <vmm.h>
+#include <mm/vmm.h>
 
 
 #define UART_BASE   (VMM_VIRT_BASE + 0x09000000)

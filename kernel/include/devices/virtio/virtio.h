@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <vmm.h>
+#include <mm/vmm.h>
 
 
 
@@ -97,22 +97,24 @@
 
 
 
+// TODO:
+// - Ensure structs that need to have volatile are set to avoid issues when removing -O0
 
 
 
 
 typedef struct {
-    uint64_t    addr;
-    uint32_t    length;
-    uint16_t    flags;
-    uint16_t    next;
+    volatile uint64_t    addr;
+    volatile uint32_t    length;
+    volatile uint16_t    flags;
+    volatile uint16_t    next;
 } __attribute__((packed)) virtio_desc_t;
 
 typedef struct {
-    uint16_t    flags;
-    uint16_t    index;
-    uint16_t    ring[VIRTIO_QUEUE_SIZE];
-    uint16_t    event;
+    volatile uint16_t       flags;
+    volatile uint16_t       index;
+    volatile uint16_t       ring[VIRTIO_QUEUE_SIZE];
+    volatile uint16_t       event;
 } __attribute__((packed)) virtio_avail_t;
 
 typedef struct {
@@ -121,19 +123,19 @@ typedef struct {
 } __attribute__((packed)) virtio_used_elem_t;
 
 typedef struct {
-    uint16_t            flags;
-    uint16_t            index;
-    virtio_used_elem_t  ring[VIRTIO_QUEUE_SIZE];
-    uint16_t            event;
+    volatile uint16_t           flags;
+    volatile uint16_t           index;
+    volatile virtio_used_elem_t ring[VIRTIO_QUEUE_SIZE];
+    volatile uint16_t           event;
 } __attribute__((packed)) virtio_used_t;
 
 typedef struct virtio_queue_t {
-    uint16_t        free_desc;
-    uint16_t        last_used;
-    virtio_desc_t   desc[VIRTIO_QUEUE_SIZE];
-    virtio_avail_t  avail;
-    uint8_t         pad[VIRTIO_ALIGN(sizeof(virtio_avail_t), PAGE_SIZE)];
-    virtio_used_t   used;
+    volatile uint16_t       free_desc;
+    volatile uint16_t       last_used;
+    volatile virtio_desc_t  desc[VIRTIO_QUEUE_SIZE];
+    volatile virtio_avail_t avail;
+    volatile uint8_t        pad[VIRTIO_ALIGN(sizeof(virtio_avail_t), PAGE_SIZE)];
+    volatile virtio_used_t  used;
 } __attribute__((packed)) virtio_queue_t;
 
 typedef struct {
@@ -201,7 +203,7 @@ typedef struct {
     uint32_t                max_write_zeros_seg;
     uint8_t                 write_zeros_may_unmap;
     uint8_t                 __unused1[3];
-} virtio_blk_config_t;
+} __attribute__((packed)) virtio_blk_config_t;
 
 typedef struct {
     uint32_t    type;
@@ -209,14 +211,9 @@ typedef struct {
     uint64_t    sector;
     uint8_t     data[512];
     uint8_t     status;
-} virtio_blk_req_t;
+} __attribute__((packed)) virtio_blk_req_t;
 
-typedef struct {
-    virtio_queue_t      *vq;
-    virtio_blk_config_t *blk_cfg;
-} virtio_blk_dev_t;
-
-extern virtio_blk_dev_t *dev;
+extern virtio_queue_t *vq;
 
 
 

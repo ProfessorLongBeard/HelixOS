@@ -4,9 +4,9 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <limine.h>
-#include <pmm.h>
-#include <vmm.h>
-#include <heap.h>
+#include <mm/pmm.h>
+#include <mm/vmm.h>
+#include <mm/heap.h>
 
 
 

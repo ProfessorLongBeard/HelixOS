@@ -4,7 +4,7 @@
 #include <limine.h>
 #include <kernel.h>
 #include <arch.h>
-#include <mm.h>
+#include <mm/mm.h>
 
 
 
@@ -221,24 +221,27 @@ void vmm_unmap(page_table_t *table, uintptr_t virt, uintptr_t phys) {
     if (l0->entries[l0_idx] & PT_VALID) {
         l1 = (page_table_t *)PHYS_TO_VIRT(l0->entries[l0_idx] & ~0xFFF);
     } else {
+        spinlock_release(&s);
         return;
     }
 
     if (l1->entries[l1_idx] & PT_VALID) {
         l2 = (page_table_t *)PHYS_TO_VIRT(l1->entries[l1_idx] & ~0xFFF);
     } else {
+        spinlock_release(&s);
         return;
     }
 
     if (l2->entries[l2_idx] & PT_VALID) {
         l3 = (page_table_t *)PHYS_TO_VIRT(l2->entries[l2_idx] & ~0xFFF);
     } else {
+        spinlock_release(&s);
         return;
     }
 
-    uintptr_t pte = l3->entries[l3_idx] & PT_PADDR_MASK;
-    assert(pte == phys);
+    uintptr_t pte = PTE_ADDR(l3->entries[l3_idx]);
 
+    // Zero out entry, and invalidate this page
     l3->entries[l3_idx] = 0;
     vmm_inval_page((uintptr_t)pte);
 
@@ -257,6 +260,44 @@ void vmm_unmap_range(page_table_t *table, uintptr_t virt_start, uintptr_t virt_e
     }
 }
 
+uintptr_t vmm_lookup(page_table_t *table, uintptr_t virt) {
+    uintptr_t l0_idx = PGD_IDX(virt);
+    uintptr_t l1_idx = PUD_IDX(virt);
+    uintptr_t l2_idx = PMD_IDX(virt);
+    uintptr_t l3_idx = PTE_IDX(virt);
+    uintptr_t pte = 0;
+
+
+
+    
+
+    assert(table != NULL);
+    page_table_t *l0 = (page_table_t *)table;
+    page_table_t *l1 = NULL, *l2 = NULL, *l3 = NULL;
+
+    if (!(l0->entries[l0_idx] & PT_VALID)) {
+        return 0;
+    }
+
+    l1 = (page_table_t *)PHYS_TO_VIRT(l0->entries[l0_idx] & ~0xFFF);
+
+    if (!(l1->entries[l1_idx] & PT_VALID)) {
+        return 0;
+    }
+
+    l2 = (page_table_t *)PHYS_TO_VIRT(l1->entries[l1_idx] & ~0xFFF);
+
+    if (!(l2->entries[l2_idx] & PT_VALID)) {
+        return 0;
+    }
+
+    l3 = (page_table_t *)PHYS_TO_VIRT(l2->entries[l2_idx] & ~0xFFF);
+
+    pte = PTE_ADDR(l3->entries[l3_idx]);
+
+    return pte;
+}
+
 uintptr_t vmm_virt2phys(page_table_t *table, uintptr_t virt) {
     uintptr_t l0_idx = PGD_IDX(virt);
     uintptr_t l1_idx = PUD_IDX(virt);
@@ -265,15 +306,12 @@ uintptr_t vmm_virt2phys(page_table_t *table, uintptr_t virt) {
     uintptr_t pte = 0;
 
 
-    
+
     assert(table != NULL);
     page_table_t *l0 = (page_table_t *)table;
     page_table_t *l1 = NULL, *l2 = NULL, *l3 = NULL;
 
-    spinlock_acquire(&s);
-
     if (!(l0->entries[l0_idx] & PT_VALID)) {
-        spinlock_release(&s);
         return 0;
     }
     
@@ -293,7 +331,6 @@ uintptr_t vmm_virt2phys(page_table_t *table, uintptr_t virt) {
 
     pte = l3->entries[l3_idx] & PT_PADDR_MASK;
 
-    spinlock_release(&s);
     return pte + (virt & 0xFFF);
 }
 
@@ -307,6 +344,14 @@ void vmm_inval_all(void) {
 
 void vmm_inval_page(uintptr_t addr) {
     __tlb_inval_page(addr);
+}
+
+void vmm_inval_page_range(uintptr_t addr, size_t length) {
+    size_t page_count = SIZE_TO_PAGES(length, PAGE_SIZE);
+
+    for (size_t i = 0; i < page_count; i++) {
+        vmm_inval_page(addr + (i * PAGE_SIZE));
+    }
 }
 
 void vmm_switch_pagemap(page_table_t *table) {
@@ -323,4 +368,61 @@ void vmm_flush_icache_addr(uintptr_t addr) {
 
 void vmm_flush_cache_range(uintptr_t virt_start, uintptr_t virt_end) {
     __flush_cache_range((uintptr_t)virt_start, (uintptr_t)virt_end);
+}
+
+vmm_mdl_t *vmm_mdl_alloc(size_t length) {
+    vmm_mdl_t *mdl = NULL;
+    
+
+    mdl = kmalloc(sizeof(vmm_mdl_t));
+    assert(mdl != NULL);
+    
+    // Prevent this memory from being paged to disk or evicted
+    mdl->is_pinned = true;
+
+    mdl->length = length;
+    mdl->page_count = SIZE_TO_PAGES(mdl->length, PAGE_SIZE);
+
+    for (size_t i = 0; i < mdl->page_count; i++) {
+        // Allocate page for page_count
+        mdl->pages[i] = (uintptr_t)pmm_alloc();
+    }
+
+    return mdl;
+}
+
+void vmm_mdl_free(vmm_mdl_t *mdl) {
+    if (!mdl) {
+        return;
+    }
+
+    if (mdl->is_pinned == true) {
+        // Disallow freeing any type of pinned DMA memory regions
+        return;
+    }
+
+    for (uint64_t i = 0; i < mdl->page_count; i++) {
+        // Free pages for page_count
+        pmm_free((uintptr_t *)mdl->pages[i]);
+    }
+
+    kfree(mdl, sizeof(vmm_mdl_t));
+}
+
+void *vmm_mdl_get_page(vmm_mdl_t *mdl, uint64_t offset) {
+    uint64_t page_idx = 0, page_offset = 0;
+    void *page = NULL;
+
+
+    if (!mdl) {
+        return NULL;
+    }
+
+    page_idx = VMM_MDL_PAGE_IDX(offset);
+    assert(page_idx <= mdl->page_count);
+
+    page = (void *)mdl->pages[page_idx];
+    assert(page != NULL);
+
+    return (void *)page;
 }

@@ -10,7 +10,7 @@
 
 static uint64_t timer_freq_hz = 0;
 static uint64_t saved_ms = 0;
-static uint64_t h = 0, m = 0, s = 0;
+
 
 
 
@@ -20,6 +20,7 @@ void timer_init(void) {
     timer_disable();
     timer_freq_hz = timer_get_freq();
 
+    // TODO: Print additional information for timer?
     printf("Timer frequency: %lluHz\n", timer_freq_hz);
 
     irq_register(VTIMER_IRQ, timer_irq_handler);

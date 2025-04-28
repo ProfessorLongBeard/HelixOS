@@ -2,6 +2,7 @@
 #define VMM_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include <limine.h>
 #include <spinlock.h>
 
@@ -12,17 +13,12 @@
 
 #define VMM_VIRT_BASE   (0xFFFF000000000000ULL)
 
-#define PT_VIRT_BASE    (0xFFFF800000000000ULL)
-#define PT_VIRT_END     (0xFFFF800004000000ULL)
-
 
 
 #define VIRT_TO_PHYS(virt) ((virt) - VMM_VIRT_BASE)
 #define PHYS_TO_VIRT(phys) ((phys) + VMM_VIRT_BASE)
 
 #define PT_ENTRY_SIZE   512
-#define PT_POOL_SIZE    (64 * 1024 * 1024)
-
 #define PAGE_SIZE       4096
 
 #define ALIGN_UP(base, align) ((base + (align - 1)) & ~(align - 1))
@@ -59,8 +55,11 @@
 #define PT_CONTIG   (1UL << 52UL) // Continguous
 #define PT_PXN      (1UL << 53UL) // Privilages execute never
 #define PT_UXN      (1UL << 54UL) // User execute never
+#define PT_KERNEL   (1UL << 63UL) // Kernel page
 
-#define PT_KERNEL   (1UL << 63UL)
+// Bits 55:58 are implementation-defined / free
+#define PT_HEAP     (1UL << 55UL)
+#define PT_DMA      (1UL << 56UL)
 
 #define PT_ATTRIDX(x) ((x) << 2)
 
@@ -97,10 +96,25 @@
 #define PMD_IDX(virt) (((virt) >> L2_SHIFT) & 0x1FF)
 #define PTE_IDX(virt) (((virt) >> L3_SHIFT) & 0x1FF)
 
+#define PTE_ADDR(virt) ((uintptr_t)(virt) & PT_PADDR_MASK)
+
+
 typedef struct {
     uintptr_t entries[PT_ENTRY_SIZE];
 } __attribute__((aligned(PAGE_SIZE), packed)) page_table_t;
 
+
+
+#define VMM_MDL_PAGE_IDX(offset)       ((offset) / PAGE_SIZE)
+#define VMM_MDL_PAGE_OFFSET(offset)    ((offset) % PAGE_SIZE)
+
+typedef struct {
+    uintptr_t   virt_base;      // Virtual base of DMA region
+    size_t      length;         // Total requested length
+    size_t      page_count;     // Total number of backing pages
+    bool        is_pinned;      // Whether pages are pinned or not
+    uintptr_t   pages[];        // Array of backing page frames
+} vmm_mdl_t;
 
 
 
@@ -115,6 +129,7 @@ typedef struct {
 
 void vmm_init(uintptr_t kernel_phys, uintptr_t kernel_virt, struct limine_memmap_response *m);
 void vmm_inval_page(uintptr_t addr);
+void vmm_inval_page_range(uintptr_t addr, size_t length);
 void vmm_inval_all(void);
 void vmm_switch_pagemap(page_table_t *table);
 void vmm_flush_dcache_addr(uintptr_t addr);
@@ -128,5 +143,10 @@ void vmm_unmap(page_table_t *table, uintptr_t virt, uintptr_t phys);
 void vmm_unmap_range(page_table_t *table, uintptr_t virt_start, uintptr_t virt_end, uintptr_t phys_start);
 page_table_t *vmm_get_pgd(void);
 uintptr_t vmm_virt2phys(page_table_t *table, uintptr_t virt);
+uintptr_t vmm_lookup(page_table_t *table, uintptr_t virt);
+
+vmm_mdl_t *vmm_mdl_alloc(size_t length);
+void vmm_mdl_free(vmm_mdl_t *mdl);
+void *vmm_mdl_get_page(vmm_mdl_t *mdl, uint64_t offset);
 
 #endif

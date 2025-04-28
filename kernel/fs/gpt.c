@@ -1,7 +1,7 @@
 #include <kstdio.h>
 #include <kstdlib.h>
 #include <kstring.h>
-#include <mm.h>
+#include <mm/mm.h>
 #include <fs/mbr.h>
 #include <fs/gpt.h>
 #include <devices/virtio/virtio.h>
@@ -58,7 +58,7 @@ void gpt_init(void) {
     if (gpt->signature != GPT_SIGNATURE) {
         printf("GPT: Invalid GPT signature! (got: 0x%lx, expected: 0x%lx)", gpt->signature, GPT_SIGNATURE);
         
-        kfree((gpt_t *)gpt);
+        kfree((gpt_t *)gpt, sizeof(gpt_t));
         return;
     }
 
@@ -69,7 +69,7 @@ void gpt_init(void) {
     if (!gpt_partitions) {
         printf("GPT: Failed to allocate GPT partition entries! (out of memory)\n");
         
-        kfree((gpt_t *)gpt);
+        kfree((gpt_t *)gpt, sizeof(gpt_t));
         return;
     }
 
@@ -78,7 +78,7 @@ void gpt_init(void) {
     if (ret != 0) {
         printf("GPT: Failed to read GPT partition entries!\n");
 
-        kfree((gpt_partition_t *)gpt_partitions);
+        kfree((gpt_partition_t *)gpt_partitions, gpt_partiiton_size);
         return;
     }
 }
