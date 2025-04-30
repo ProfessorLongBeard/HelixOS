@@ -48,7 +48,7 @@ static size_t kslab_get_size(size_t length) {
         slab_size <<= 1;
     }
 
-    return length;
+    return slab_size;
 }
 
 void kheap_init(void) {
