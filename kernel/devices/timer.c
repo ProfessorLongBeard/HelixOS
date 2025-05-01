@@ -8,8 +8,9 @@
 
 
 
-static uint64_t timer_freq_hz = 0;
-static uint64_t saved_ms = 0;
+static volatile uint64_t timer_freq_hz = 0;
+static volatile uint64_t saved_ticks = 0;
+static volatile uint64_t sys_ticks = 0;
 
 
 
@@ -20,7 +21,6 @@ void timer_init(void) {
     timer_disable();
     timer_freq_hz = timer_get_freq();
 
-    // TODO: Print additional information for timer?
     printf("Timer frequency: %lluHz\n", timer_freq_hz);
 
     irq_register(VTIMER_IRQ, timer_irq_handler);
@@ -33,9 +33,7 @@ void timer_set(uint64_t ms) {
     uint64_t ticks = (timer_freq_hz * ms) / 1000;
     uint64_t curr_time = timer_virt_get_time();
     uint64_t deadline = curr_time + ticks;
-
-    // Save deadline for timer reload (for now)
-    saved_ms = deadline;
+    saved_ticks = ticks;
 
     // Set timer
     __cntv_cval_write(deadline);
@@ -76,11 +74,23 @@ uint64_t timer_get_freq(void) {
     return timer_freq;
 }
 
+uint64_t timer_get_sys_ticks(void) {
+    return sys_ticks;
+}
+
+void timer_reset_sys_ticks(void) {
+    sys_ticks = 0;
+}
+
 void timer_irq_handler(void) {
+    uint64_t curr_time = timer_virt_get_time();
+    uint64_t deadline = curr_time + saved_ticks;
+    
     timer_disable();
 
-    // TODO: Improve timer handling
-    __cntv_cval_write(saved_ms);
+    sys_ticks++;
+
+    __cntv_cval_write(deadline);
 
     timer_enable();
 }

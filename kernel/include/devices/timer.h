@@ -26,5 +26,7 @@ void timer_set(uint64_t ms);
 void timer_set_cntp(uint64_t cntp);
 uint64_t timer_read_cntp(void);
 uint64_t timer_phys_get_cval(void);
+uint64_t timer_get_sys_ticks(void);
+void timer_reset_sys_ticks(void);
 
 #endif
