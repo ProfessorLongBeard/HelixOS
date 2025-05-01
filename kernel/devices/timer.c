@@ -82,6 +82,14 @@ void timer_reset_sys_ticks(void) {
     sys_ticks = 0;
 }
 
+void timer_sleep(uint64_t delay) {
+    uint64_t start = timer_get_sys_ticks();
+
+    while((timer_get_sys_ticks() - start) < delay) {
+        wfi();
+    }
+}
+
 void timer_irq_handler(void) {
     uint64_t curr_time = timer_virt_get_time();
     uint64_t deadline = curr_time + saved_ticks;

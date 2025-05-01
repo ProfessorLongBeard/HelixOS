@@ -28,5 +28,6 @@ uint64_t timer_read_cntp(void);
 uint64_t timer_phys_get_cval(void);
 uint64_t timer_get_sys_ticks(void);
 void timer_reset_sys_ticks(void);
+void timer_sleep(uint64_t delay);
 
 #endif
