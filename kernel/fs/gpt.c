@@ -119,7 +119,8 @@ uint64_t gpt_partition_get_index(const char *name) {
         }
     }
 
-    return idx;
+    // No valid index found
+    return -1;
 }
 
 uint64_t gpt_partition_get_offset(uint64_t partition_idx) {
