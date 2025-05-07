@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <fs/vfs.h>
 #include <spinlock.h>
+#include <fs/ext2/ext2_utils.h>
 
 
 

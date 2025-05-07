@@ -4,7 +4,7 @@
 #include <mm/mm.h>
 #include <fs/vfs.h>
 #include <fs/gpt.h>
-#include <fs/ext2.h>
+#include <fs/ext2/ext2.h>
 #include <spinlock.h>
 #include <devices/virtio/virtio.h>
 #include <devices/virtio/virtio_blk.h>

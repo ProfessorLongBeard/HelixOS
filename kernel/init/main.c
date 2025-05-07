@@ -7,6 +7,7 @@
 #include <arch.h>
 #include <fs/mbr.h>
 #include <fs/vfs.h>
+#include <fs/ext2/ext2.h>
 #include <devices/timer.h>
 #include <devices/gicv3.h>
 #include <devices/pl011.h>
