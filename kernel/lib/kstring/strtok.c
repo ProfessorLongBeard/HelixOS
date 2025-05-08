@@ -4,7 +4,8 @@
 
 
 char *strtok(char *str, const char *delim) {
-    char *save = NULL, *token_start = NULL, *token_end = NULL;
+    static char *save = NULL;
+    char *token_start = NULL, *token_end = NULL;
 
     if (str != NULL) {
         save = str;
