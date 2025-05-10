@@ -5,12 +5,16 @@
 #include <stddef.h>
 
 
+typedef struct vfs_mount        vfs_mount_t;
+typedef struct vfs_node         vfs_node_t;
+typedef struct vfs_opts         vfs_opts_t;
+typedef struct vfs_dirent       vfs_dirent_t;
+typedef struct vfs_node_opts    vfs_node_opts_t;
 
-typedef struct vfs_node vfs_node_t;
-typedef struct vfs_opts vfs_opts_t;
-typedef struct vfs_dirent vfs_dirent_t;
 
-#define VFS_MAX_NAME    256
+
+
+#define VFS_MAX_NAME_LEN    256
 
 #define VFS_TYPE_FIFO          0x1000
 #define VFS_TYPE_CHAR_DEV      0x2000
@@ -45,48 +49,46 @@ typedef struct vfs_dirent vfs_dirent_t;
 
 
 
-
-
 typedef struct vfs_dirent {
-    uint64_t            inode;
-    uint64_t            type, mode;
     vfs_node_t          *node;
-    char                name[VFS_MAX_NAME];
-    struct vfs_dirent   *next;
+    vfs_mount_t         *mounted;
+    struct vfs_dirent   *parent, *first_child, *next_sibling;
+    char                name[VFS_MAX_NAME_LEN];
 } vfs_dirent_t;
 
 typedef struct vfs_opts {
-    void (*fs_mount)(const char *path, vfs_node_t *node);
-    vfs_dirent_t  *(*fs_lookup)(vfs_node_t *node, const char *path);
+    vfs_dirent_t    *(*fs_lookup)(const char *path);
+    vfs_dirent_t    *(*fs_mount)(const char *path);
 } vfs_opts_t;
 
+typedef struct vfs_node_opts {
+    // open(), create(), etc
+} vfs_node_opts_t;
+
 typedef struct vfs_node {
-    char                name[VFS_MAX_NAME];
     uint64_t            inode;
-    uint64_t            refcount;
     uint64_t            uid, gid;
-    uint64_t            atime, ctime, mtime;
+    uint64_t            refcount;
     uint64_t            type, mode;
-    struct vfs_node     *parent;
-    struct vfs_node     *children;
-    vfs_opts_t          *fs_opts;
+    uint64_t            atime, ctime, mtime;
+    size_t              length;
+    uint64_t            num_links;
+    struct vfs_node     *link;
     void                *fs_private;
+    vfs_node_opts_t     *fs_opts;
+    char                name[VFS_MAX_NAME_LEN];
 } vfs_node_t;
 
-typedef struct vfs_root {
-    char                fs_type[VFS_MAX_NAME];
+typedef struct vfs_mount {
     uint64_t            type;
-    vfs_node_t          *root;
-    struct vfs_root     *next;
-} vfs_root_t;
-
+    vfs_dirent_t        *root;
+    vfs_opts_t          *opts;
+    struct vfs_mount    *next;
+} vfs_mount_t;
 
 
 
 
 void vfs_init(void);
-vfs_node_t *vfs_node_alloc(void);
-void vfs_register(const char *fs_type, vfs_opts_t *fs_opts);
-void vfs_mount(const char *path, const char *fs_type);
 
 #endif
