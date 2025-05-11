@@ -3,92 +3,113 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <spinlock.h>
 
 
-typedef struct vfs_mount        vfs_mount_t;
-typedef struct vfs_node         vfs_node_t;
-typedef struct vfs_opts         vfs_opts_t;
-typedef struct vfs_dirent       vfs_dirent_t;
-typedef struct vfs_node_opts    vfs_node_opts_t;
 
+typedef struct vfs_node     vfs_node_t;
+typedef struct vfs_dirent   vfs_dirent_t;
+typedef struct vfs_mount    vfs_mount_t;
+typedef struct vfs_fs_opts  vfs_fs_opts_t;
 
 
 
 #define VFS_MAX_NAME_LEN    256
 
-#define VFS_TYPE_FIFO          0x1000
-#define VFS_TYPE_CHAR_DEV      0x2000
-#define VFS_TYPE_DIRECTORY     0x4000
-#define VFS_TYPE_BLOCK_DEV     0x6000
-#define VFS_TYPE_REG_FILE      0x8000
-#define VFS_TYPE_SYMLINK       0xA000
-#define VFS_TYPE_SOCKET        0xC000
+#define PATH_SEP        '/'
+#define PATH_SEP_STR    "/"
 
-#define VFS_S_SETUID           04000
-#define VFS_S_SETGID           02000
-#define VFS_S_STICKY           01000
-#define VFS_S_IRUSR            00400
-#define VFS_S_IWUSR            00200
-#define VFS_S_IXUSR            00100
-#define VFS_S_IRGRP            00040
-#define VFS_S_IWGRP            00020
-#define VFS_S_IXGRP            00010
-#define VFS_S_IROTH            00004
-#define VFS_S_IWOTH            00002
-#define VFS_S_IXOTH            00001
+#define PATH_DOT        "."
+#define PATH_UP         ".."
 
-#define VFS_DIR_TYPE_UNKNOWN       0
-#define VFS_DIR_TYPE_REG_FILE      1
-#define VFS_DIR_TYPE_DIR           2
-#define VFS_DIR_TYPE_CHAR_DEV      3
-#define VFS_DIR_TYPE_BLOCK_DEV     4
-#define VFS_DIR_TYPE_FIFO          5
-#define VFS_DIR_TYPE_SOCKET        6
-#define VFS_DIR_TYPE_SYMLINK       7
+#define VFS_TYPE_FILE   0x01    // Regular file
+#define VFS_TYPE_DIR    0x02    // Directory
+#define VFS_TYPE_CHAR   0x04    // Character device
+#define VFS_TYPE_BLK    0x08    // Block device
+#define VFS_TYPE_PIPE   0x10    // Pipe device
+#define VFS_TYPE_SYM    0x20    // Symbolic link
+#define VFS_TYPE_MNT    0x40    // Mount point
 
+#define VFS_IFMT        0170000
+#define VFS_IFDIR       0040000
+#define VFS_IFCHR       0020000
+#define VFS_IFBLK       0060000
+#define VFS_IFREG       0100000
+#define VFS_IFLINK      0120000
+#define VFS_IFSOCK      0240000
+#define VFS_IFIFO       0010000
 
+struct stat {
+    uint16_t  st_dev;
+	uint16_t  st_ino;
+	uint32_t  st_mode;
+	uint16_t  st_nlink;
+	uint16_t  st_uid;
+	uint16_t  st_gid;
+	uint16_t  st_rdev;
+	uint32_t  st_size;
+	uint32_t  st_atime;
+	uint32_t  __unused1;
+	uint32_t  st_mtime;
+	uint32_t  __unused2;
+	uint32_t  st_ctime;
+	uint32_t  __unused3;
+};
 
+typedef struct vfs_fs_opts {
+    vfs_dirent_t    *(*fs_readdir)(vfs_node_t *n, uint32_t inode);
+    vfs_node_t      *(*fs_finddir)(vfs_node_t *n, const char *name);
+} vfs_fs_opts_t;
 
 typedef struct vfs_dirent {
-    vfs_node_t          *node;
-    vfs_mount_t         *mounted;
-    struct vfs_dirent   *parent, *first_child, *next_sibling;
-    char                name[VFS_MAX_NAME_LEN];
+    uint32_t    inode;
+    char        name[VFS_MAX_NAME_LEN];
 } vfs_dirent_t;
 
-typedef struct vfs_opts {
-    vfs_dirent_t    *(*fs_lookup)(const char *path);
-    vfs_dirent_t    *(*fs_mount)(const char *path);
-} vfs_opts_t;
-
-typedef struct vfs_node_opts {
-    // open(), create(), etc
-} vfs_node_opts_t;
-
 typedef struct vfs_node {
-    uint64_t            inode;
-    uint64_t            uid, gid;
-    uint64_t            refcount;
-    uint64_t            type, mode;
-    uint64_t            atime, ctime, mtime;
-    size_t              length;
-    uint64_t            num_links;
-    struct vfs_node     *link;
-    void                *fs_private;
-    vfs_node_opts_t     *fs_opts;
-    char                name[VFS_MAX_NAME_LEN];
+    void            *device;    // Device object
+
+    uint32_t        inode;      // Inode number
+    uint32_t        mask;       // Permission mask
+    uint32_t        uid;        // Owner user ID
+    uint32_t        gid;        // Owner group ID
+    uint32_t        type;       // Flags (node, etc)
+    uint32_t        mode;       // Permission flags
+
+    uint32_t        atime;
+    uint32_t        mtime;
+    uint32_t        ctime;
+
+    struct vfs_node *link;      // For symlinks
+    uint32_t        nlink;      // Number of links
+
+    size_t          length;
+
+    vfs_fs_opts_t   *fs_opts;
+
+    char            name[VFS_MAX_NAME_LEN];
+
+    struct vfs_node *parent;
+    struct vfs_node *children;
+    struct vfs_node *siblings;
 } vfs_node_t;
 
+typedef struct vfs_fs_type {
+    char                fs_type[VFS_MAX_NAME_LEN];
+    vfs_fs_opts_t       *fs_opts;
+    struct vfs_fs_type *next;
+} vfs_fs_type_t;
+
 typedef struct vfs_mount {
-    uint64_t            type;
-    vfs_dirent_t        *root;
-    vfs_opts_t          *opts;
-    struct vfs_mount    *next;
+    spinlock_t  s;
+    vfs_node_t  *root;
 } vfs_mount_t;
 
 
 
 
 void vfs_init(void);
+void vfs_register(const char *fs_type, vfs_fs_opts_t *opts);
+void vfs_mount(const char *path, const char *fs_type);
 
 #endif
