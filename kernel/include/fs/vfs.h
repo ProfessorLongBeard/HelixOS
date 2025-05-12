@@ -57,8 +57,8 @@ struct stat {
 };
 
 typedef struct vfs_fs_opts {
-    vfs_dirent_t    *(*fs_readdir)(vfs_node_t *n, uint32_t inode);
-    vfs_node_t      *(*fs_finddir)(vfs_node_t *n, const char *name);
+    vfs_node_t      *(*fs_mount)(const char *path);
+    vfs_node_t      *(*fs_lookup)(vfs_node_t *n, const char *name);
 } vfs_fs_opts_t;
 
 typedef struct vfs_dirent {
@@ -75,6 +75,7 @@ typedef struct vfs_node {
     uint32_t        gid;        // Owner group ID
     uint32_t        type;       // Flags (node, etc)
     uint32_t        mode;       // Permission flags
+    uint32_t        refcount;
 
     uint32_t        atime;
     uint32_t        mtime;
@@ -86,6 +87,7 @@ typedef struct vfs_node {
     size_t          length;
 
     vfs_fs_opts_t   *fs_opts;
+    void            *fs_private;
 
     char            name[VFS_MAX_NAME_LEN];
 
@@ -107,9 +109,9 @@ typedef struct vfs_mount {
 
 
 
-
 void vfs_init(void);
 void vfs_register(const char *fs_type, vfs_fs_opts_t *opts);
 void vfs_mount(const char *path, const char *fs_type);
+vfs_node_t *vfs_lookup(const char *path);
 
 #endif

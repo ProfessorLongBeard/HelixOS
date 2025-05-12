@@ -201,12 +201,7 @@ typedef struct {
     char        name[];
 } ext2_dirent_t;
 
-typedef struct {
-    spinlock_t          s;
-    ext2_superblock_t   *sb;
-    ext2_inode_t        *root;
-} ext2_t;
-
+extern ext2_superblock_t *sb;
 
 
 
@@ -232,10 +227,12 @@ void ext2_free_inode(ext2_inode_t *inode_ptr);
 uint32_t ext2_get_inode_block_group(uint32_t inode);
 uint32_t ext2_get_inode_index(uint32_t inode);
 uint32_t ext2_get_sectors_per_block(void);
-ext2_dirent_t *ext2_lookup(ext2_inode_t *inode, const char *name);
 ext2_block_group_t *ext2_get_block_desc_for_inode(uint32_t inode_num);
 uint32_t ext2_get_inodes_per_block(void);
 size_t ext2_get_inode_data_size(ext2_inode_t *inode);
 void ext2_list_dir(ext2_inode_t *inode);
+
+vfs_node_t *ext2_mount(const char *path);
+vfs_node_t *ext2_lookup(vfs_node_t *root, const char *path);
 
 #endif
