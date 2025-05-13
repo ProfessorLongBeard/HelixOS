@@ -234,5 +234,6 @@ void ext2_list_dir(ext2_inode_t *inode);
 
 vfs_node_t *ext2_mount(const char *path);
 vfs_node_t *ext2_lookup(vfs_node_t *root, const char *path);
+int ext2_open(vfs_node_t *node, uint32_t flags);
 
 #endif

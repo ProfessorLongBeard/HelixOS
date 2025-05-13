@@ -36,6 +36,7 @@ ext2_superblock_t *sb = NULL;
 static vfs_fs_opts_t ext2_fs_opts = {
     .fs_mount = &ext2_mount,
     .fs_lookup = &ext2_lookup,
+    .fs_open = &ext2_open
 };
 
 
@@ -99,6 +100,7 @@ vfs_node_t *ext2_mount(const char *path) {
     root->fs_opts = &ext2_fs_opts;
 
     root->type = VFS_TYPE_DIR;
+    root->type |= VFS_TYPE_MNT;
 
     return root;
 }
@@ -122,12 +124,6 @@ vfs_node_t *ext2_lookup(vfs_node_t *root, const char *path) {
     if (!root || !path) {
         return NULL;
     }
-
-    // TODO: Fix directory checking!
-    // if (!(root->type & VFS_TYPE_DIR)) {
-    //     printf("EXT2: %s not a directory!\n", path);
-    //     return NULL;
-    // }
 
     root_node = (ext2_inode_t *)root->fs_private;
     assert(root_node != NULL);
@@ -171,6 +167,8 @@ vfs_node_t *ext2_lookup(vfs_node_t *root, const char *path) {
 
             node = kmalloc(sizeof(vfs_node_t));
             assert(node != NULL);
+            
+            strncpy(node->name, tmp_name, sizeof(node->name));
 
             node->inode = dir->inode;
 
@@ -210,6 +208,33 @@ vfs_node_t *ext2_lookup(vfs_node_t *root, const char *path) {
 
     kfree(tmp_dirent, sectors_per_block);
     return node;
+}
+
+int ext2_open(vfs_node_t *node, uint32_t flags) {
+    ext2_inode_t *inode = NULL;
+
+
+    if (!node) {
+        return -EINVAL;
+    }
+
+    if (node->type == VFS_TYPE_DIR) {
+        return -EISDIR;
+    }
+
+    inode = (ext2_inode_t *)node->fs_private;
+    assert(inode != NULL);
+
+    if ((flags & O_CREAT) || (flags & O_RDWR) || (flags & O_APPEND)) {
+        return -EROFS;
+    }
+
+    // TODO: Check for exec permissions? And maybe only check for user permisisons for now?
+    if (!(node->mode & EXT2_S_IRUSR) || !(node->mode & EXT2_S_IRGRP) || !(node->mode & EXT2_S_IROTH)) {
+        return -EACCES;
+    }
+
+    return 0;
 }
 
 ext2_block_group_t *ext2_get_block_desc_for_inode(uint32_t inode_num) {
