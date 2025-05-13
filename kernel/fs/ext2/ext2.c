@@ -46,74 +46,6 @@ void ext2_init(void) {
     vfs_register("ext2fs", &ext2_fs_opts);
 }
 
-static ext2_dirent_t *ext2_lookup_internal(ext2_inode_t *inode, const char *name) {
-    uint32_t ret = 0;
-    char tmp_name[256] = {0}, tmp2[1024] = {0}, *ptr = NULL;
-    uint8_t *tmp_dirent = NULL;
-    ext2_dirent_t *dirent = NULL;
-    uint32_t block = 0, block_lba = 0;
-    uint32_t offset = 0, block_size = ext2_get_block_size();
-    uint32_t sectors_per_block = ext2_get_sectors_per_block();
-    uint32_t ext2_part_idx = gpt_partition_get_index("Rootfs");
-    uint32_t ext2_part_offset = gpt_partition_get_offset(ext2_part_idx);
-
-
-
-    if (!inode || !name) {
-        return NULL;
-    }
-
-    ptr = (char *)name;
-
-    if (*ptr == '/') {
-        // Skip leading slash
-        ptr++;
-    }
-
-    for (uint32_t i = 0; i < 15; i++) {
-        if (inode->blocks[i] == 0) {
-            continue;
-        }
-
-        block = inode->blocks[i];
-        block_lba = block * sectors_per_block;
-        break;
-    }
-
-    tmp_dirent = kmalloc(sectors_per_block);
-    assert(tmp_dirent != NULL);
-
-    ret = virtio_blk_read(tmp_dirent, ext2_part_offset + block_lba, sectors_per_block);
-    assert(ret == 0);
-
-    while(offset <= block_size) {
-        ext2_dirent_t *dir = (ext2_dirent_t *)(tmp_dirent + offset);
-        assert(dir != NULL);
-
-        if (dir->entry_size == 0) {
-            continue;
-        }
-
-        // Ensure a clean buffer for directory names
-        memset(tmp_name, 0, sizeof(tmp_name));
-
-        strncpy(tmp_name, dir->name, dir->name_length);
-        tmp_name[dir->name_length] = '\0';
-
-        if (strcmp(tmp_name, ptr) == 0) {
-            dirent = kmalloc(dir->entry_size);
-            assert(dirent != NULL);
-
-            memcpy(dirent, dir, dir->entry_size);
-            break;
-        }
-
-        offset += dir->entry_size;
-    }
-
-    return dirent;
-}
-
 vfs_node_t *ext2_mount(const char *path) {
     uint32_t ret = 0;
     vfs_node_t *root = NULL;
@@ -173,10 +105,16 @@ vfs_node_t *ext2_mount(const char *path) {
 
 vfs_node_t *ext2_lookup(vfs_node_t *root, const char *path) {
     uint32_t ret = 0;
-    vfs_node_t *root_curr = root, *node = NULL;
-    char tmp_path[1024], *token = NULL, *tmp_name = NULL;
-    ext2_inode_t *ext2_node = NULL, *root_node = NULL;
+    char tmp_name[1024];
+    uint8_t *tmp_dirent = NULL;
+    vfs_node_t *node = NULL;
+    ext2_inode_t *root_node = NULL, *tmp_node = NULL;
     ext2_dirent_t *dir = NULL;
+    uint32_t block = 0, block_lba = 0;
+    uint32_t offset = 0, block_size = ext2_get_block_size();
+    uint32_t sectors_per_block = ext2_get_sectors_per_block();
+    uint32_t ext2_idx = gpt_partition_get_index("Rootfs");
+    uint64_t ext2_offset = gpt_partition_get_offset(ext2_idx);
 
 
 
@@ -185,68 +123,93 @@ vfs_node_t *ext2_lookup(vfs_node_t *root, const char *path) {
         return NULL;
     }
 
-    if (!(root_curr->type & VFS_TYPE_DIR)) {
-        return NULL;
-    }
+    // TODO: Fix directory checking!
+    // if (!(root->type & VFS_TYPE_DIR)) {
+    //     printf("EXT2: %s not a directory!\n", path);
+    //     return NULL;
+    // }
 
     root_node = (ext2_inode_t *)root->fs_private;
     assert(root_node != NULL);
 
-    strncpy(tmp_path, path, sizeof(tmp_path));
-    tmp_path[sizeof(tmp_path) - 1] = '\0';
-
-    token = strtok(tmp_path, "/");
-
-    while(token != NULL) {
-        vfs_node_t *node = root_curr->children;
-
-        while(node != NULL) {
-            if (strcmp(node->name, token) == 0) {
-                break;
-            }
-
-            node = node->siblings;
+    // TODO: Handle indirect nodes
+    for (uint32_t i = 0; i < 12; i++) {
+        if (root_node->blocks[i] == 0) {
+            continue;
         }
 
-        if (!node) {
-            dir = ext2_lookup_internal(root_node, token);
-            assert(dir != NULL);
+        block = root_node->blocks[i];
+        block_lba = block * sectors_per_block;
+        break;
+    }
 
-            ext2_node = ext2_read_inode(dir->inode);
-            assert(ext2_node != NULL);
+    // TODO: Allocate with block size instead of sectors per block here?
+    tmp_dirent = kmalloc(sectors_per_block);
+    assert(tmp_dirent != NULL);
+
+    ret = virtio_blk_read((uint8_t *)tmp_dirent, ext2_offset + block_lba, sectors_per_block);
+    assert(ret == 0);
+
+    while(offset <= block_size) {
+        dir = (ext2_dirent_t *)(tmp_dirent + offset);
+        assert(dir != NULL);
+        
+        if (dir->entry_size == 0) {
+            // Need to break of no other entries to exist to avoid running into an infinite loop
+            break;
+        }
+
+        memset(tmp_name, 0, sizeof(tmp_name));
+
+        strncpy(tmp_name, dir->name, dir->name_length);
+        tmp_name[dir->name_length] = '\0';
+
+        // TODO: Handle additional paths...
+        if (strcmp(tmp_name, path) == 0) {
+            tmp_node = ext2_read_inode(dir->inode);
+            assert(tmp_node != NULL);
 
             node = kmalloc(sizeof(vfs_node_t));
             assert(node != NULL);
 
-            strncpy(node->name, token, sizeof(node->name));
-
             node->inode = dir->inode;
-            node->uid = ext2_node->user_id;
-            node->gid = ext2_node->group_id;
 
-            node->type = (ext2_node->type_and_permissions & EXT2_TYPE_MASK);
-            node->mode = (ext2_node->type_and_permissions & EXT2_PERM_MASK);
+            node->uid = tmp_node->user_id;
+            node->gid = tmp_node->group_id;
 
-            node->ctime = ext2_node->ctime;
-            node->atime = ext2_node->last_atime;
-            node->mtime = ext2_node->last_mtime;
+            node->type = (tmp_node->type_and_permissions & EXT2_TYPE_MASK);
+            node->mode = (tmp_node->type_and_permissions & EXT2_PERM_MASK);
 
-            node->length = ext2_get_inode_data_size(ext2_node);
+            node->refcount = 1;
+           
+            node->ctime = tmp_node->ctime;
+            node->atime = tmp_node->last_atime;
+            node->mtime = tmp_node->last_mtime;
 
-            node->fs_private = (ext2_inode_t *)ext2_node;
+            node->length = ext2_get_inode_data_size(tmp_node);
 
-            node->parent = root_curr;
-            node->siblings = root_curr->children;
-            root_curr->children = node;
+            // TODO: Check for symlinks
+            node->link = NULL;
+            node->nlink = 0;
 
-            kfree(dir, dir->entry_size);
+            node->parent = NULL;
+            node->children = NULL;
+            node->siblings = NULL;
+
+            node->fs_opts = &ext2_fs_opts;
+            node->fs_private = (ext2_inode_t *)tmp_node;
+            break;
         }
 
-        root_curr = node;
-        token = strtok(NULL, "/");
+        offset += dir->entry_size;
     }
 
-    return root_curr;
+    if (!node) {
+        return NULL;
+    }
+
+    kfree(tmp_dirent, sectors_per_block);
+    return node;
 }
 
 ext2_block_group_t *ext2_get_block_desc_for_inode(uint32_t inode_num) {
