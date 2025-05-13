@@ -16,7 +16,9 @@ void spinlock_init(spinlock_t *s) {
 void spinlock_acquire(spinlock_t *s) {
     assert(s != NULL);
 
-    while(atomic_flag_test_and_set(&s->lock));
+    while(atomic_flag_test_and_set(&s->lock)) {
+        __asm__ volatile("wfi\n\t");
+    }
 }
 
 void spinlock_release(spinlock_t *s) {
