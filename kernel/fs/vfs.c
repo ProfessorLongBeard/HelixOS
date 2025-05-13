@@ -97,8 +97,6 @@ vfs_node_t *vfs_lookup(const char *path) {
 
         while(ch != NULL) {
             if (strcmp(ch->name, token) == 0) {
-                printf("VFS: Found cached node for %s!\n", token);
-
                 node = ch;
                 break;
             }
@@ -107,8 +105,6 @@ vfs_node_t *vfs_lookup(const char *path) {
         }
 
         if (!ch) {
-            printf("VFS: %s not cached! Creating...\n", token);
-
             node = root->fs_opts->fs_lookup(root, token);
             assert(node != NULL);
 
@@ -135,4 +131,37 @@ vfs_node_t *vfs_lookup(const char *path) {
     }
 
     return node;
+}
+
+vfs_file_t *vfs_open(const char *path, uint32_t flags) {
+    int ret = 0;
+    vfs_file_t *fd = NULL;
+    vfs_node_t *fd_node = NULL;
+
+
+    if (!path) {
+        return NULL;
+    }
+
+    fd_node = vfs_lookup(path);
+    assert(fd_node != NULL);
+
+    ret = fd_node->fs_opts->fs_open(fd_node, flags);
+    assert(ret == 0);
+
+    fd = kmalloc(sizeof(vfs_file_t));
+    assert(fd != NULL);
+
+    strncpy(fd->name, fd_node->name, sizeof(fd_node->name));
+
+    fd_node->refcount++;
+
+    fd->inode = fd_node->inode;
+    fd->mode = fd_node->mode;
+    fd->type = fd_node->type;
+    fd->length = fd_node->length;
+    fd->flags = flags;
+    fd->offset = 0;
+
+    return fd;
 }

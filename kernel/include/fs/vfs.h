@@ -11,24 +11,25 @@ typedef struct vfs_node     vfs_node_t;
 typedef struct vfs_dirent   vfs_dirent_t;
 typedef struct vfs_mount    vfs_mount_t;
 typedef struct vfs_fs_opts  vfs_fs_opts_t;
+typedef struct vfs_file     vfs_file_t;
 
 
 
 #define VFS_MAX_NAME_LEN    256
 
-#define PATH_SEP        '/'
-#define PATH_SEP_STR    "/"
+#define SEEK_CURR       1
+#define SEEK_END        2
+#define SEEK_SET        0
 
-#define PATH_DOT        "."
-#define PATH_UP         ".."
-
-#define VFS_TYPE_FILE   0x01    // Regular file
-#define VFS_TYPE_DIR    0x02    // Directory
-#define VFS_TYPE_CHAR   0x04    // Character device
-#define VFS_TYPE_BLK    0x08    // Block device
-#define VFS_TYPE_PIPE   0x10    // Pipe device
-#define VFS_TYPE_SYM    0x20    // Symbolic link
-#define VFS_TYPE_MNT    0x40    // Mount point
+#define VFS_TYPE_UNKNOWN    0x0     // Unknown file type
+#define VFS_TYPE_FILE       0x1     // Regular file
+#define VFS_TYPE_DIR        0x2     // Directory
+#define VFS_TYPE_CHAR       0x3     // Character device
+#define VFS_TYPE_BLK        0x4     // Block device
+#define VFS_TYPE_FIFO       0x5     // FIFO device
+#define VFS_TYPE_PIPE       0x6     // Pipe device
+#define VFS_TYPE_SYM        0x20    // Symbolic link
+#define VFS_TYPE_MNT        0x40    // Mount point
 
 #define VFS_IFMT        0170000
 #define VFS_IFDIR       0040000
@@ -38,6 +39,35 @@ typedef struct vfs_fs_opts  vfs_fs_opts_t;
 #define VFS_IFLINK      0120000
 #define VFS_IFSOCK      0240000
 #define VFS_IFIFO       0010000
+
+#define O_RDONLY        0x0000
+#define O_WRONLY        0x0001
+#define O_RDWR          0x0002
+#define O_ACCMODE       0x0003
+
+#define O_CREAT         0x0100
+#define O_EXCL          0x0200
+#define O_TRUNC         0x0400
+#define O_APPEND        0x0800
+
+// TODO: Add more error codes when needed...
+#define EPERM           1
+#define ENOENT          2
+#define ESRCH           3
+#define EINTR           4
+#define EIO             5
+#define EACCES         13
+#define EEXIST         17
+#define ENOTDIR        20
+#define EISDIR         21
+#define EINVAL         22
+#define ENFILE         23
+#define EMFILE         24
+#define ENOSPC         28
+#define EROFS          30
+#define ENAMETOOLONG   36
+#define ENOTEMPTY      39
+#define ELOOP          40
 
 struct stat {
     uint16_t  st_dev;
@@ -59,7 +89,18 @@ struct stat {
 typedef struct vfs_fs_opts {
     vfs_node_t      *(*fs_mount)(const char *path);
     vfs_node_t      *(*fs_lookup)(vfs_node_t *n, const char *name);
+    int             (*fs_open)(vfs_node_t *node, uint32_t flags);
 } vfs_fs_opts_t;
+
+typedef struct vfs_file {
+    uint32_t    inode;
+    uint32_t    type;
+    uint32_t    mode;
+    uint32_t    flags;
+    uint64_t    offset;
+    size_t      length;
+    char        name[VFS_MAX_NAME_LEN];
+} vfs_file_t;
 
 typedef struct vfs_dirent {
     uint32_t    inode;
@@ -113,5 +154,6 @@ void vfs_init(void);
 void vfs_register(const char *fs_type, vfs_fs_opts_t *opts);
 void vfs_mount(const char *path, const char *fs_type);
 vfs_node_t *vfs_lookup(const char *path);
+vfs_file_t *vfs_open(const char *path, uint32_t flags);
 
 #endif
