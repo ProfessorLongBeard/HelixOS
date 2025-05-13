@@ -79,14 +79,60 @@ void vfs_register(const char *fs_type, vfs_fs_opts_t *opts) {
 
 vfs_node_t *vfs_lookup(const char *path) {
     vfs_node_t *root = vfs_root->root, *node = NULL;
+    char tmp_path[1024], *token = NULL;
 
     if (!path) {
         printf("VFS: Invalid path %s!\n", path);
         return NULL;
     }
+    
+    strncpy(tmp_path, path, sizeof(tmp_path));
+    tmp_path[sizeof(tmp_path) - 1] = '\0';
 
-    node = root->fs_opts->fs_lookup(root, path);
-    assert(node != NULL);
+    token = strtok(tmp_path, "/");
+
+    while(token != NULL) {
+        // TODO: Handle parent
+        vfs_node_t *ch = root->children;
+
+        while(ch != NULL) {
+            if (strcmp(ch->name, token) == 0) {
+                printf("VFS: Found cached node for %s!\n", token);
+
+                node = ch;
+                break;
+            }
+
+            ch = ch->siblings;
+        }
+
+        if (!ch) {
+            printf("VFS: %s not cached! Creating...\n", token);
+
+            node = root->fs_opts->fs_lookup(root, token);
+            assert(node != NULL);
+
+            if (!root->children) {
+                root->children = node;
+            } else {
+                vfs_node_t *n = root->children;
+                
+                while(n->siblings != NULL) {
+                    n = n->siblings;
+                }
+
+                n->siblings = node;
+            }
+        }
+
+        root = node;
+        token = strtok(NULL, "/");
+    }
+
+    if (!node) {
+        printf("VFS: Failed to lookup %s!\n", path);
+        return NULL;
+    }
 
     return node;
 }
