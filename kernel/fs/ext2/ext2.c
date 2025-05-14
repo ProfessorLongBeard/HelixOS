@@ -36,7 +36,9 @@ ext2_superblock_t *sb = NULL;
 static vfs_fs_opts_t ext2_fs_opts = {
     .fs_mount = &ext2_mount,
     .fs_lookup = &ext2_lookup,
-    .fs_open = &ext2_open
+    .fs_open = &ext2_open,
+    .fs_close = &ext2_close,
+    .fs_read = &ext2_read
 };
 
 
@@ -218,12 +220,12 @@ int ext2_open(vfs_node_t *node, uint32_t flags) {
         return -EINVAL;
     }
 
+    inode = (ext2_inode_t *)node->fs_private;
+    assert(inode != NULL);
+
     if (node->type == VFS_TYPE_DIR) {
         return -EISDIR;
     }
-
-    inode = (ext2_inode_t *)node->fs_private;
-    assert(inode != NULL);
 
     if ((flags & O_CREAT) || (flags & O_RDWR) || (flags & O_APPEND)) {
         return -EROFS;
@@ -234,6 +236,68 @@ int ext2_open(vfs_node_t *node, uint32_t flags) {
         return -EACCES;
     }
 
+    return 0;
+}
+
+int ext2_close(vfs_node_t *node) {
+    ext2_inode_t *inode = NULL;
+
+
+
+    if (!node || !node->fs_private) {
+        return -EINVAL;
+    }
+
+    // TODO:
+    // - Handle flushing to disk?
+    // - Release inodes locks?
+    // - Manage open file table, etc?
+
+    return 0;
+}
+
+int ext2_read(vfs_node_t *node, void *buf, size_t length) {
+    uint32_t ret = 0;
+    uint8_t *tmp_buf = NULL;
+    ext2_inode_t *inode = NULL;
+    uint32_t ext2_idx = gpt_partition_get_index("Rootfs");
+    uint64_t ext2_offset = gpt_partition_get_offset(ext2_idx);
+    uint32_t block = 0, block_lba = 0, sectors_per_block = ext2_get_sectors_per_block();
+
+
+
+    if (!node || !buf || length > node->length) {
+        return -EINVAL;
+    }
+
+    if (node->type == VFS_TYPE_DIR) {
+        return -EISDIR;
+    }
+
+    inode = (ext2_inode_t *)node->fs_private;
+    assert(inode != NULL);
+
+    // TODO: Pad length to 512-byte boundaries here?
+    tmp_buf = kmalloc(length);
+    assert(tmp_buf != NULL);
+
+    // TODO: Handle single, doubly or triply block cases...
+    for (uint32_t i = 0; i < 12; i++) {
+        if (inode->blocks[i] == 0) {
+            continue;
+        }
+
+        block = inode->blocks[i];
+        block_lba = block * sectors_per_block;
+        break;
+    }
+
+    ret = virtio_blk_read(tmp_buf, ext2_offset + block_lba, length);
+    assert(ret == 0);
+
+    memcpy(buf, tmp_buf, length);
+
+    kfree(tmp_buf, length);
     return 0;
 }
 
