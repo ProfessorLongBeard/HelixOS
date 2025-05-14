@@ -90,9 +90,12 @@ typedef struct vfs_fs_opts {
     vfs_node_t      *(*fs_mount)(const char *path);
     vfs_node_t      *(*fs_lookup)(vfs_node_t *n, const char *name);
     int             (*fs_open)(vfs_node_t *node, uint32_t flags);
+    int             (*fs_close)(vfs_node_t *node);
+    int             (*fs_read)(vfs_node_t *node, void *buf, size_t length);
 } vfs_fs_opts_t;
 
 typedef struct vfs_file {
+    vfs_node_t  *node;
     uint32_t    inode;
     uint32_t    type;
     uint32_t    mode;
@@ -155,5 +158,7 @@ void vfs_register(const char *fs_type, vfs_fs_opts_t *opts);
 void vfs_mount(const char *path, const char *fs_type);
 vfs_node_t *vfs_lookup(const char *path);
 vfs_file_t *vfs_open(const char *path, uint32_t flags);
+int vfs_close(vfs_file_t *fd);
+int vfs_read(vfs_file_t *fd, void *buf, size_t length);
 
 #endif

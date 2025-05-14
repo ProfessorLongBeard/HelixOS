@@ -147,7 +147,10 @@ vfs_file_t *vfs_open(const char *path, uint32_t flags) {
     assert(fd_node != NULL);
 
     ret = fd_node->fs_opts->fs_open(fd_node, flags);
-    assert(ret == 0);
+    
+    if (ret < 0) {
+        return NULL;
+    }
 
     fd = kmalloc(sizeof(vfs_file_t));
     assert(fd != NULL);
@@ -162,6 +165,56 @@ vfs_file_t *vfs_open(const char *path, uint32_t flags) {
     fd->length = fd_node->length;
     fd->flags = flags;
     fd->offset = 0;
+    fd->node = fd_node;
 
     return fd;
+}
+
+int vfs_close(vfs_file_t *fd) {
+    int ret = 0;
+    vfs_node_t *fd_node = NULL;
+
+    
+    if (!fd || !fd->node) {
+        return -EINVAL;
+    }
+
+    fd_node = fd->node;
+
+    ret = fd_node->fs_opts->fs_close(fd_node);
+
+    if (ret < 0) {
+        return ret;
+    }
+
+    if (fd_node->refcount > 0) {
+        fd_node->refcount--;
+    }
+
+    kfree(fd, sizeof(vfs_file_t));
+    return 0;
+}
+
+int vfs_read(vfs_file_t *fd, void *buf, size_t length) {
+    int ret = 0;
+    vfs_node_t *fd_node = NULL;
+
+
+    if (!fd || !buf || !fd->node) {
+        return -EINVAL;
+    }
+
+    if (length > fd->length) {
+        return -EINVAL;
+    }
+
+    fd_node = fd->node;
+
+    ret = fd_node->fs_opts->fs_read(fd_node, buf, length);
+
+    if (ret < 0) {
+        return ret;
+    }
+
+    return 0;
 }
