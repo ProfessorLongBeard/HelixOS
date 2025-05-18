@@ -13,5 +13,7 @@ target_sources(${KERNEL_TARGET} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/strspn.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/strpbrk.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/strtok_r.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/strdup.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/strtok_count.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/char16_to_ascii.c"
 )

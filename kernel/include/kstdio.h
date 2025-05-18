@@ -5,6 +5,7 @@
 
 
 
+int print(const char *fmt, ...);
 
 int printf(const char *fmt, ...);
 int sprintf(char *s, const char *fmt, ...);

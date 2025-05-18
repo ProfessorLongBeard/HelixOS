@@ -11,3 +11,6 @@
 	path = external/limine
 	url = https://github.com/limine-bootloader/limine.git
 	branch = v9.x-binary
+[submodule "external/ubsan"]
+	path = external/ubsan
+	url = https://github.com/rdmsr/tinyubsan.git
