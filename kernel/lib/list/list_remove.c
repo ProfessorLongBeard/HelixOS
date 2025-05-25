@@ -1,6 +1,5 @@
 #include <kstdio.h>
 #include <kstdlib.h>
-#include <mm/mm.h>
 #include <list.h>
 
 
@@ -8,20 +7,21 @@
 
 
 
-
-
-void list_destroy(list_t *list) {
+void list_remove(list_t *list, uint64_t idx) {
+    uint64_t i = 0;
     list_node_t *node = NULL;
 
 
-    if (!list) {
+    if (idx > list->list_count) {
         return;
     }
 
     node = list->list_head;
 
-    while(node != NULL) {
-        kfree(node->data, node->length);
+    while(i < idx) {
         node = node->next;
+        i++;
     }
+
+    list_delete(list, node);
 }

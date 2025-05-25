@@ -1,6 +1,6 @@
 #include <kstdio.h>
-#include <kstring.h>
 #include <kstdlib.h>
+#include <mm/mm.h>
 #include <list.h>
 
 
@@ -10,20 +10,17 @@
 
 
 list_t *list_init(void) {
-    list_t *l = NULL;
+    list_t *list = NULL;
 
+    list = kmalloc(sizeof(list_t));
 
-    l = kmalloc(sizeof(list_t));
-
-    if (!l) {
+    if (!list) {
         return NULL;
     }
 
-    memset(l, 0, sizeof(list_t));
+    list->list_count = 0;
+    list->list_head = NULL;
+    list->list_tail = NULL;
 
-    l->list_count = 0;
-    l->list_head = NULL;
-    l->list_tail = NULL;
-
-    return l;
+    return list;
 }
