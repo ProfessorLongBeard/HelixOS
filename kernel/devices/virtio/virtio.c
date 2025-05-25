@@ -2,7 +2,7 @@
 #include <kstdlib.h>
 #include <irq.h>
 #include <mm/mm.h>
-#include <arch.h>
+#include <arch/arch.h>
 #include <devices/gicv3.h>
 #include <devices/virtio/virtio.h>
 #include <devices/virtio/virtio_blk.h>

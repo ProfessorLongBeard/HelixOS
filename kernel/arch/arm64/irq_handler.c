@@ -1,7 +1,7 @@
 #include <kstdio.h>
 #include <kstdlib.h>
-#include <arch.h>
 #include <irq.h>
+#include <arch/arch.h>
 #include <devices/gicv3.h>
 
 

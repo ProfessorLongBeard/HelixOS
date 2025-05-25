@@ -1,7 +1,7 @@
 #include <kstdio.h>
 #include <kstdlib.h>
 #include <irq.h>
-#include <arch.h>
+#include <arch/arch.h>
 #include <devices/gicv3.h>
 #include <devices/timer.h>
 #include <spinlock.h>
@@ -23,7 +23,7 @@ static volatile uint64_t sys_ticks = 0;
 
 void timer_init(void) {
     timer_disable();
-    timer_freq_hz = timer_get_freq();
+    timer_freq_hz = timer_get_freq() / 10000;
 
     spinlock_init(&s);
 

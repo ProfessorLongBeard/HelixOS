@@ -4,15 +4,17 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <spinlock.h>
+#include <list.h>
 
 
 
-typedef struct vfs_node     vfs_node_t;
-typedef struct vfs_dirent   vfs_dirent_t;
-typedef struct vfs_mount    vfs_mount_t;
-typedef struct vfs_fs_opts  vfs_fs_opts_t;
-typedef struct vfs_file     vfs_file_t;
 
+typedef struct vfs_inode vfs_inode_t;
+typedef struct vfs_dirent vfs_dirent_t;
+typedef struct vfs_superblock vfs_superblock_t;
+typedef struct vfs_filesystem_type vfs_filesystem_type_t;
+typedef struct vfs_filesystem_opts vfs_filesystem_opts_t;
+typedef struct vfs_superblock_opts vfs_superblock_opts_t;
 
 
 #define VFS_MAX_NAME_LEN    256
@@ -86,79 +88,71 @@ struct stat {
 	uint32_t  __unused3;
 };
 
-typedef struct vfs_fs_opts {
-    vfs_node_t      *(*fs_mount)(const char *path);
-    vfs_node_t      *(*fs_lookup)(vfs_node_t *n, const char *name);
-    int             (*fs_open)(vfs_node_t *node, uint32_t flags);
-    int             (*fs_close)(vfs_node_t *node);
-    int             (*fs_read)(vfs_node_t *node, void *buf, size_t length);
-} vfs_fs_opts_t;
+typedef struct vfs_superblock_opts {
+} vfs_superblock_opts_t;
+typedef struct vfs_filesystem_type {
+	char					*fs_type;
+	vfs_dirent_t			*(*fs_mount)(vfs_filesystem_type_t *fs, const char *path, uint32_t flags);
+	void					(*fs_unmount)(vfs_superblock_t *sb);
+	list_t					*fs_type_list;
+} vfs_filesystem_type_t;
 
-typedef struct vfs_file {
-    vfs_node_t  *node;
-    uint32_t    inode;
-    uint32_t    type;
-    uint32_t    mode;
-    uint32_t    flags;
-    uint64_t    offset;
-    size_t      length;
-    char        name[VFS_MAX_NAME_LEN];
-} vfs_file_t;
+typedef struct vfs_superblock {
+	vfs_dirent_t			*sb_root;
+	vfs_filesystem_type_t	*fs_type;
+	vfs_superblock_opts_t	*sb_opts;
+	void					*sb_private;
+	size_t					sb_length;
+	list_t					*sb_list;
+} vfs_superblock_t;
+
+typedef struct vfs_filesystem_opts {
+    vfs_dirent_t    *(*fs_lookup)(vfs_dirent_t *dir, const char *path);
+	int				(*fs_listdir)(vfs_dirent_t *dir, const char *path);
+} vfs_filesystem_opts_t;
+
+typedef struct vfs_inode {
+	spinlock_t				lock;
+    uint32_t            	inode;
+    uint32_t            	length;
+    uint32_t            	uid, gid;
+    uint32_t           		type, mode;
+    uint32_t            	atime, mtime, ctime;
+	int						refcount;
+	vfs_filesystem_opts_t	*fs_opts;
+    void                	*fs_private;
+	void					*device;
+	char					name[VFS_MAX_NAME_LEN];
+} vfs_inode_t;
 
 typedef struct vfs_dirent {
-    uint32_t    inode;
-    char        name[VFS_MAX_NAME_LEN];
+	spinlock_t			d_lock;
+    uint32_t            d_inode;
+    uint32_t            d_mode;
+    uint32_t            d_type;
+	vfs_inode_t			*d_node;
+	struct vfs_dirent	*d_parent;
+	list_t				*d_children;
+	list_t				*d_subdirs;
+	vfs_superblock_t	*d_sb;
+    char                d_name[VFS_MAX_NAME_LEN];
 } vfs_dirent_t;
 
-typedef struct vfs_node {
-    void            *device;    // Device object
 
-    uint32_t        inode;      // Inode number
-    uint32_t        mask;       // Permission mask
-    uint32_t        uid;        // Owner user ID
-    uint32_t        gid;        // Owner group ID
-    uint32_t        type;       // Flags (node, etc)
-    uint32_t        mode;       // Permission flags
-    uint32_t        refcount;
 
-    uint32_t        atime;
-    uint32_t        mtime;
-    uint32_t        ctime;
 
-    struct vfs_node *link;      // For symlinks
-    uint32_t        nlink;      // Number of links
-
-    size_t          length;
-
-    vfs_fs_opts_t   *fs_opts;
-    void            *fs_private;
-
-    char            name[VFS_MAX_NAME_LEN];
-
-    struct vfs_node *parent;
-    struct vfs_node *children;
-    struct vfs_node *siblings;
-} vfs_node_t;
-
-typedef struct vfs_fs_type {
-    char                fs_type[VFS_MAX_NAME_LEN];
-    vfs_fs_opts_t       *fs_opts;
-    struct vfs_fs_type *next;
-} vfs_fs_type_t;
-
-typedef struct vfs_mount {
-    spinlock_t  s;
-    vfs_node_t  *root;
-} vfs_mount_t;
 
 
 
 void vfs_init(void);
-void vfs_register(const char *fs_type, vfs_fs_opts_t *opts);
-void vfs_mount(const char *path, const char *fs_type);
-vfs_node_t *vfs_lookup(const char *path);
-vfs_file_t *vfs_open(const char *path, uint32_t flags);
-int vfs_close(vfs_file_t *fd);
-int vfs_read(vfs_file_t *fd, void *buf, size_t length);
+void vfs_mount(const char *path, const char *fs_type, uint32_t flags);
+void vfs_register(vfs_filesystem_type_t *fs);
+void vfs_mount(const char *path, const char *fs_type, uint32_t flags);
+char **vfs_split_path(const char *path, int *token_count);
+void vfs_free_split_path(const char **path_tokens, int token_count);
+vfs_dirent_t *vfs_lookup(vfs_dirent_t *root, const char *path);
+vfs_inode_t *vfs_inode_alloc(void);
+vfs_dirent_t *vfs_dirent_alloc(void);
+int vfs_listdir(const char *path);
 
 #endif

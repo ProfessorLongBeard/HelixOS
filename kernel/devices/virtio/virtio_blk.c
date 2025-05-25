@@ -1,7 +1,7 @@
 #include <kstdio.h>
 #include <kstdlib.h>
 #include <mm/mm.h>
-#include <arch.h>
+#include <arch/arch.h>
 #include <spinlock.h>
 #include <devices/virtio/virtio.h>
 #include <devices/virtio/virtio_blk.h>
