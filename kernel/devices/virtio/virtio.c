@@ -2,7 +2,7 @@
 #include <kstdlib.h>
 #include <irq.h>
 #include <mm/mm.h>
-#include <arch.h>
+#include <arch/arch.h>
 #include <devices/gicv3.h>
 #include <devices/virtio/virtio.h>
 #include <devices/virtio/virtio_blk.h>
@@ -141,6 +141,7 @@ void virtio_init(void) {
         return;
     }
 
+    v->queue_sel = 0;
     v->queue_num = VIRTIO_QUEUE_SIZE;
     __mb();
 
@@ -213,12 +214,6 @@ void virtio_submit_req(uint16_t desc_index) {
     uint16_t ring_index = 0;
     uintptr_t desc_phys = 0, avail_phys = 0, used_phys = 0;
 
-
-
-
-    v->queue_sel = desc_index;
-
-    v->queue_num = VIRTIO_QUEUE_SIZE;
 
     desc_phys = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)vq->desc);
     avail_phys = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)&vq->avail);

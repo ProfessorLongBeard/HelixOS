@@ -27,7 +27,4 @@ extern uint64_t __elimine_requests[];
 extern uint64_t __sstack[];
 extern uint64_t __estack[];
 
-extern uint64_t __skernel_heap[];
-extern uint64_t __ekernel_heap[];
-
 #endif

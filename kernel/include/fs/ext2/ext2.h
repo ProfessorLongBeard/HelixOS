@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <fs/vfs.h>
 #include <spinlock.h>
+#include <fs/ext2/ext2_utils.h>
 
 
 
@@ -12,6 +13,9 @@
 
 
 #define EXT2_SIGNATURE  0xEF53
+
+#define EXT2_MIN_BLOCK_SIZE     1024
+#define	EXT2_MAX_BLOCK_SIZE	    65536
 
 #define EXT2_TYPE_MASK  0xF000
 #define EXT2_PERM_MASK  0x0FFF
@@ -100,6 +104,25 @@
 #define EXT2_DIR_TYPE_FIFO          5
 #define EXT2_DIR_TYPE_SOCKET        6
 #define EXT2_DIR_TYPE_SYMLINK       7
+
+#define EXT2_GET_INODE_DATA_SIZE(inode) (((size_t)(inode)->hi_size_bytes << 32) | (inode)->lo_size_bytes)
+
+#define EXT2_LBA_TO_OFFSET(lba, block_size) ((lba) * (block_size))
+#define EXT2_OFFSET_TO_LBA(lba, block_size) ((lba) / (block_size))
+
+#define EXT2_GET_INODE_SIZE(sb) ((sb)->inode_structure_size)
+
+#define EXT2_GET_BLOCK_SIZE(sb) (1024 << (sb)->log2_block_size)
+#define EXT2_GET_FRAG_SIZE(sb)  (1024 << (sb)->log2_fragment_size)
+
+#define EXT2_GET_BLOCK_GROUP_COUNT(sb) (((sb)->total_blocks + (sb)->blocks_per_group - 1) / (sb)->blocks_per_group)
+
+#define EXT2_GET_INODE_BLOCK_GROUP(sb, ino) ((ino - 1) / (sb)->inodes_per_group)
+#define EXT2_GET_INODE_INDEX(sb, ino) ((ino - 1) % (sb)->inodes_per_group)
+
+#define EXT2_SECTORS_PER_BLOCK(block_size, sector_size) ((block_size) / (sector_size))
+#define EXT2_INODES_PER_BLOCK(block_size, inode_size) ((block_size) / (inode_size))
+
 
 
 
@@ -200,12 +223,6 @@ typedef struct {
     char        name[];
 } ext2_dirent_t;
 
-typedef struct {
-    spinlock_t          s;
-    ext2_superblock_t   *sb;
-    ext2_inode_t        *root;
-} ext2_t;
-
 
 
 
@@ -226,15 +243,17 @@ uint32_t ext2_get_block_group_count(void);
 uint32_t ext2_get_inode_size(void);
 uint32_t ext2_inode_get_block_group(uint32_t inode);
 uint32_t ext2_get_inode_index(uint32_t inode);
-ext2_inode_t *ext2_read_inode(uint32_t inode_num);
+ext2_inode_t *ext2_read_inode(vfs_superblock_t *vfs_sb, uint32_t inode_num);
 void ext2_free_inode(ext2_inode_t *inode_ptr);
 uint32_t ext2_get_inode_block_group(uint32_t inode);
 uint32_t ext2_get_inode_index(uint32_t inode);
 uint32_t ext2_get_sectors_per_block(void);
-ext2_dirent_t *ext2_lookup(ext2_inode_t *inode, const char *name);
-ext2_block_group_t *ext2_get_block_desc_for_inode(uint32_t inode_num);
+ext2_block_group_t *ext2_get_block_desc_for_inode(vfs_superblock_t *vfs_sb, uint32_t inode_num);
 uint32_t ext2_get_inodes_per_block(void);
 size_t ext2_get_inode_data_size(ext2_inode_t *inode);
-void ext2_list_dir(ext2_inode_t *inode);
+
+vfs_dirent_t *ext2_mount(vfs_filesystem_type_t *fs, const char *path, uint32_t flags);
+vfs_dirent_t *ext2_lookup(vfs_dirent_t *dir, const char *path);
+int ext2_listdir(vfs_dirent_t *dir, const char *path);
 
 #endif

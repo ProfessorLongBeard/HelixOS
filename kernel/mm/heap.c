@@ -498,6 +498,28 @@ static void *heap_alloc_from_list(heap_page_list_t *list) {
     return ptr;
 }
 
+void *krealloc(void *old_ptr, size_t old_length, size_t new_length) {
+    void *ptr = NULL;
+    
+    if (!old_ptr) {
+        return NULL;
+    }
+
+    ptr = kmalloc(new_length);
+
+    if (!ptr) {
+        return NULL;
+    }
+
+    // Copy data to newly allocated space
+    memcpy(ptr, old_ptr, new_length);
+
+    // Free old pointer data
+    kfree(old_ptr, old_length);
+
+    return ptr;
+}
+
 void *kmalloc(size_t length) {
     void *ptr = NULL, *tmp_ptr = NULL;
     heap_page_list_t *page = NULL;

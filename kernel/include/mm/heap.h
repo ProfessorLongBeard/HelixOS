@@ -53,5 +53,6 @@ void *kslab_alloc(size_t length);
 void kslab_free(void *ptr, size_t length);
 void *kmalloc(size_t length);
 void kfree(void *ptr, size_t length);
+void *krealloc(void *old_ptr, size_t old_length, size_t new_length);
 
 #endif

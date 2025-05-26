@@ -31,6 +31,7 @@ target_compile_options(${KERNEL_TARGET} PRIVATE
     -fPIC
     -mno-outline-atomics
     -z noexecstack
+    -fsanitize=undefined
 )
 
 target_link_options(${KERNEL_TARGET} PRIVATE
@@ -58,6 +59,15 @@ if (EXISTS $ENV{HELIX_EXT_DIR}/printf)
     endif()
 
     add_subdirectory($ENV{HELIX_EXT_DIR}/printf/src/printf ${CMAKE_BINARY_DIR}/printf)
+endif()
+
+
+if (EXISTS $ENV{HELIX_EXT_DIR}/ubsan)
+    if (NOT EXISTS $ENV{HELIX_EXT_DIR}/ubsan/CMakeLists.txt)
+        configure_file(${CMAKE_SOURCE_DIR}/cmake/ubsan.cmake.in $ENV{HELIX_EXT_DIR}/ubsan/CMakeLists.txt @ONLY)
+    endif()
+
+    add_subdirectory($ENV{HELIX_EXT_DIR}/ubsan ${CMAKE_BINARY_DIR}/ubsan)
 endif()
 
 add_subdirectory(arch)

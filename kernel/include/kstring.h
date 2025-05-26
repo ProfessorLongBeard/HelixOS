@@ -39,5 +39,10 @@ char *strdup(const char *s);
 char *strrchr(const char *s, char ch);
 int memcmp(const void *s1, const void *s2, size_t length);
 void char16_to_ascii(char *dst, uint_least16_t *src, size_t length);
+size_t strspn(const char *s1, const char *s2);
+char *strpbrk(const char *s, const char *brk);
+char *strtok_r(char *s, const char *delim, char **save_ptr);
+int strtok_count(const char *s);
+char *strdup(const char *s);
 
 #endif

@@ -20,8 +20,6 @@ PHDRS
     text            PT_LOAD     FLAGS(PHDR_RX);
     rodata          PT_LOAD     FLAGS(PHDR_RO);
     data            PT_LOAD     FLAGS(PHDR_RW);
-    stack           PT_LOAD     FLAGS(PHDR_RW);
-    heap            PT_LOAD     FLAGS(PHDR_RW);
 }
 
 SECTIONS
@@ -75,17 +73,13 @@ SECTIONS
         *(COMMON)
         __ebss = .;
         __bss_size = __ebss - __sbss;
-    } :data
 
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-
-    .stack (NOLOAD) : {
+        /* 256KB stack space */
         . = ALIGN(16);
         __sstack = .;
-        . = . + 0x200000; /* Initial 2MB stack space */
+        . += 262144;
         __estack = .;
-        __stack_size = __estack - __sstack;
-    } :stack
+    } :data
 
     __kernel_end = .;
 

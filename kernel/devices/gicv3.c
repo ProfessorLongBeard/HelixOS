@@ -1,5 +1,5 @@
 #include <kstdio.h>
-#include <arch.h>
+#include <arch/arch.h>
 #include <stdbool.h>
 #include <devices/gicv3.h>
 

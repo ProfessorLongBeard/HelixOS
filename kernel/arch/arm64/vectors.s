@@ -124,11 +124,7 @@ __aarch64_synchronous_handler:
     mrs x0, elr_el1
     stp x0, xzr, [sp, #-16]!
 
-    // Get ESR value and store into x0
-    mrs x15, esr_el1
-    lsr x0, x15, #26
-
-    // Get faulting address and spsr
+    mrs x0, elr_el1
     mrs x1, far_el1
     mrs x2, spsr_el1
 
