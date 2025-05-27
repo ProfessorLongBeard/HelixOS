@@ -12,6 +12,7 @@
 
 
 static volatile virtio_t *v = (virtio_t *)VIRTIO_MMIO_BASE;
+static volatile virtio_blk_config_t *virtio_cfg = (virtio_blk_config_t *)(VIRTIO_MMIO_BASE + 0x100);
 
 
 
@@ -33,6 +34,9 @@ static volatile virtio_t *v = (virtio_t *)VIRTIO_MMIO_BASE;
 
 
 void virtio_init(void) {
+    uint16_t ring_index = 0;
+    uintptr_t desc_phys = 0, avail_phys = 0, used_phys = 0;
+
     if (v->magic != VIRTIO_MAGIC) {
         printf("VIRTIO: Invalid device magic: 0x%lx (expected: 0x%lx)\n", v->magic, VIRTIO_MAGIC);
         return;
@@ -141,11 +145,33 @@ void virtio_init(void) {
         return;
     }
 
+    virtio_blk_init();
+
     v->queue_sel = 0;
     v->queue_num = VIRTIO_QUEUE_SIZE;
     __mb();
 
-    virtio_blk_init();
+    desc_phys = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)vq->desc);
+    avail_phys = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)&vq->avail);
+    used_phys = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)&vq->used);
+
+    v->queue_desc_low = desc_phys;
+    v->queue_desc_high = 0;
+
+    v->queue_avail_low = avail_phys;
+    v->queue_avail_high = 0;
+
+    v->queue_used_low = used_phys;
+    v->queue_used_high = 0;
+    __mb();
+
+    uint64_t disk_size_bytes = virtio_cfg->capacity * 512;
+    uint64_t disk_size = disk_size_bytes / (1024 * 1024);
+
+    printf("Virtio disk information:\n");
+    printf("\tSize: %luMB\n", disk_size);
+    printf("\tBlock size: %lu\n", virtio_cfg->block_size);
+    printf("\tC/H/S: %lu/%lu/%lu\n", virtio_cfg->geometry.cylinders, virtio_cfg->geometry.heads, virtio_cfg->geometry.tracks);
 
     irq_register(VIRTIO_IRQ_ID, virtio_irq_handler);
     gic_set_irq_group_ns(VIRTIO_IRQ_ID);
@@ -211,25 +237,8 @@ void virtio_irq_handler(void) {
 }
 
 void virtio_submit_req(uint16_t desc_index) {
-    uint16_t ring_index = 0;
-    uintptr_t desc_phys = 0, avail_phys = 0, used_phys = 0;
-
-
-    desc_phys = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)vq->desc);
-    avail_phys = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)&vq->avail);
-    used_phys = vmm_virt2phys(vmm_get_pgd(), (uintptr_t)&vq->used);
-
-    v->queue_desc_low = desc_phys;
-    v->queue_desc_high = 0;
-
-    v->queue_avail_low = avail_phys;
-    v->queue_avail_high = 0;
-
-    v->queue_used_low = used_phys;
-    v->queue_used_high = 0;
-    __mb();
-
     vq->avail.ring[vq->avail.index % VIRTIO_QUEUE_SIZE] = desc_index;
+    __mb();
 
     vq->avail.flags = RING_EVENT_FLAGS_ENABLE;
     vq->avail.event = 0;
@@ -239,11 +248,15 @@ void virtio_submit_req(uint16_t desc_index) {
     __mb();
 
     v->queue_ready = 1;
-
     __mb();
+
     vq->avail.index++;
     __mb();
 
     v->queue_notify = 0;
     __mb();
+}
+
+uint32_t virtio_get_block_size(void) {
+    return virtio_cfg->block_size;
 }

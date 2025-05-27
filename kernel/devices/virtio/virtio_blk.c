@@ -42,7 +42,7 @@ uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, size_t length) {
     volatile uint8_t *status = NULL;
     virtio_blk_req_t *req = NULL;
     virtio_desc_t *desc_hdr = NULL, *desc_data = NULL, *desc_status = NULL;
-    uint32_t desc_hdr_index = 0, desc_data_index = 0, desc_status_index = 0;
+    uint32_t desc_hdr_index = 0, desc_data_index = 0, desc_status_index = 0, st = VIRTIO_BLK_S_OK;
 
 
 
@@ -87,41 +87,36 @@ uint32_t virtio_blk_read(uint8_t *buf, uint64_t sector, size_t length) {
     desc_status->flags = VIRTIO_DESC_F_WRITE;
     desc_status->next = 0;
 
+    spinlock_acquire(&s);
     virtio_submit_req(desc_hdr_index);
+    __mb();
+    spinlock_release(&s);
 
     while(*status == 0xFF) {
         // Wait for disk to complete the request
         __asm__ volatile("nop\n\t");
     }
 
-    uint32_t st = *status;
+    st = *status;
 
     if (st == VIRTIO_BLK_S_IOERR) {
         printf("VIRTIO: Failed to read sector 0x%lx! (IO error)\n", sector);
-
-        kfree(req, sizeof(virtio_blk_req_t));
-        kfree((void *)status, 1);
-        return st;
     }
 
     if (st == VIRTIO_BLK_S_UNSUPP) {
         printf("VIRTIO: Failed to read sector 0x%lx! (unsupported)\n", sector);
-
-        kfree(req, sizeof(virtio_blk_req_t));
-        kfree((void *)status, 1);
-        return st;
     }
 
     kfree(req, sizeof(virtio_blk_req_t));
     kfree((void *)status, 1);
-    return 0;
+    return st;
 }
 
 uint32_t virtio_blk_write(uint8_t *buf, uint64_t sector, uint64_t length) {
     volatile uint8_t *status = NULL;
     virtio_blk_req_t *req = NULL;
     virtio_desc_t *desc_hdr = NULL, *desc_data = NULL, *desc_status = NULL;
-    uint32_t desc_hdr_index = 0, desc_data_index = 0, desc_status_index = 0;
+    uint32_t desc_hdr_index = 0, desc_data_index = 0, desc_status_index = 0, st = VIRTIO_BLK_S_OK;
 
 
 
@@ -166,35 +161,29 @@ uint32_t virtio_blk_write(uint8_t *buf, uint64_t sector, uint64_t length) {
     desc_status->flags = VIRTIO_DESC_F_WRITE;
     desc_status->next = 0;
 
-
+    spinlock_acquire(&s);
     virtio_submit_req(desc_hdr_index);
+    __mb();
+    spinlock_release(&s);
 
     while(*status == 0xFF) {
         // Wait for disk to complete the request
         __asm__ volatile("nop\n\t");
     }
 
-    uint32_t st = *status;
+    st = *status;
 
     if (st == VIRTIO_BLK_S_IOERR) {
         printf("VIRTIO: Failed to write sector 0x%lx! (IO error)\n", sector);
-
-        kfree(req, sizeof(virtio_blk_req_t));
-        kfree((void *)status, 1);
-        return st;
     }
 
     if (st == VIRTIO_BLK_S_UNSUPP) {
         printf("VIRTIO: Failed to write sector 0x%lx! (unsupported)\n", sector);
-
-        kfree(req, sizeof(virtio_blk_req_t));
-        kfree((void *)status, 1);
-        return st;
     }
 
     kfree(req, sizeof(virtio_blk_req_t));
     kfree((void *)status, 1);
-    return 0;
+    return st;
 }
 
 virtio_queue_t *virtio_blk_queue_init(size_t queue_size) {

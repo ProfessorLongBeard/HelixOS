@@ -226,5 +226,6 @@ extern virtio_queue_t *vq;
 void virtio_init(void);
 void virtio_irq_handler(void);
 void virtio_submit_req(uint16_t desc_index);
+uint32_t virtio_get_block_size(void);
 
 #endif
