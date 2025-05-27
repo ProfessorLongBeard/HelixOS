@@ -193,6 +193,7 @@ typedef struct {
     uint32_t                size_max;
     uint32_t                seg_max;
     virtio_blk_geometry_t   geometry;
+    uint32_t                block_size;
     virtio_blk_topology_t   topology;
     uint8_t                 writeback;
     uint8_t                 __unused0[3];
