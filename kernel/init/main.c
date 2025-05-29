@@ -4,11 +4,7 @@
 #include <framebuffer.h>
 #include <kstdlib.h>
 #include <mm/mm.h>
-#include <fs/vfs.h>
-#include <fs/mbr.h>
-#include <fs/gpt.h>
 #include <arch/arch.h>
-#include <fs/ext2/ext2.h>
 #include <devices/timer.h>
 #include <devices/gicv3.h>
 #include <devices/pl011.h>
@@ -46,9 +42,7 @@ static volatile struct limine_kernel_address_request kern_addr_req = {
 
 
 
-static vfs_filesystem_opts_t opts = {
-    .fs_lookup = NULL
-};
+
 
 void helix_init(void) {
     if (LIMINE_BASE_REVISION_SUPPORTED == false) {
@@ -72,15 +66,6 @@ void helix_init(void) {
     timer_init();
     uart_init();
     virtio_init();
-    vfs_init();
-    mbr_init();
-    gpt_init();
-    ext2_init();
-
-    vfs_mount("/", "ext2fs", 0);
-
-    vfs_listdir("/");
-    vfs_listdir("/home/helix");
 
     __hcf();
 }
